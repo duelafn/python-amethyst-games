@@ -9,10 +9,10 @@ Standards-Version: 3.9.1
 
 Package: python-amethyst-games
 Architecture: all
-Depends: ${misc:Depends}, ${python3:Depends}, ${shlibs:Depends}, python-six
+Depends: ${misc:Depends}, ${python3:Depends}, ${shlibs:Depends}, python-six, python-amethyst-core
 Description: Game Engine Toolkit (Python 2)
 
 Package: python3-amethyst-games
 Architecture: all
-Depends: ${misc:Depends}, ${python3:Depends}, ${shlibs:Depends}, python3-six
+Depends: ${misc:Depends}, ${python3:Depends}, ${shlibs:Depends}, python3-six, python3-amethyst-core
 Description: Game Engine Toolkit (Python 3)
