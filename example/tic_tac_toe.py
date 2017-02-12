@@ -15,15 +15,13 @@
 # License along with this program. If not, see <http://www.gnu.org/licenses/>.
 from __future__ import division, absolute_import, print_function, unicode_literals
 
-import re, sys, os.path
-__version__ = '0.0.1'
+import six
 
+from amethyst.core  import Object, Attr
+from amethyst.games import Engine, EnginePlugin, Action, InvalidActionException
+from amethyst.games.plugin import Turns
 
-from amethyst.games import *
-from amethyst.core  import *
-
-
-class TicTacToe(EnginePlugin):
+class TicTacToe_Base(EnginePlugin):
 
     def start_game(self, game):
         game.next_turn()
@@ -42,15 +40,17 @@ class TicTacToe(EnginePlugin):
         game.next_turn()
 
 
-class ToeBoard(Engine):
-    board = Attr()
-    def __init__(self, width=3, height=3, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if self.board is None:
-            self.board = [ [None] * width for i in range(height) ]
+class TicTacToe(Engine):
+    board  = Attr()
+    width  = Attr(default=3)
+    height = Attr(default=3)
 
+    def __init__(self, *args, **kwargs):
+        super(TicTacToe,self).__init__(*args, **kwargs)
+        if self.board is None:
+            self.board = [ [None] * self.width for i in range(self.height) ]
         self.register(Turns)
-        self.register(TicTacToe)
+        self.register(TicTacToe_Base)
 
     def spaces_available(self):
         avail = []
@@ -85,8 +85,6 @@ def getopts():
     parser = argparse.ArgumentParser(description="""Tool for doing stuff""")
 
     # http://docs.python.org/2/library/argparse.html
-    parser.add_argument('--version', action='version', version='This is %(prog)s version {}'.format(__version__))
-
     parser.add_argument('first', type=int, help='first weld number to export')
     parser.add_argument('last',  type=int, help='last weld number to export')
 
@@ -97,7 +95,7 @@ def getopts():
 
 
 def MAIN(argv):
-    game = ToeBoard()
+    game = TicTacToe()
     game.start()
     move = input("Move? ").split()
     while len(move) == 2:

@@ -30,7 +30,7 @@ class Filter(Object):
     all   = Attr()
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super(Filter,self).__init__(*args, **kwargs)
         self.make_immutable()
 
     def accepts(self, obj):
@@ -88,7 +88,7 @@ class Filterable(Object):
     group = Attr(isa=six.text_type)
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super(Filterable,self).__init__(*args, **kwargs)
         if self._ensure_flags_:
             if self.flags is None:
                 self.flags = set(self._ensure_flags_)

@@ -16,16 +16,23 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-__all__ = 'Engine EnginePlugin InvalidActionException'.split()
+__all__ = '''
+Engine EnginePlugin EngineRole
+
+AmethystGameException
+  InvalidActionException
+  InvalidEngineRoleException
+'''.split()
 
 import six
+
 from collections import defaultdict
 
-import amethyst.games.plugin
 from amethyst.core import Object, Attr
 
-class InvalidActionException(Exception):
-    pass
+class AmethystGameException(Exception): pass
+class InvalidActionException(AmethystGameException): pass
+class InvalidEngineRoleException(AmethystGameException): pass
 
 class EnginePlugin(Object):
     AMETHYST_PLUGIN_COMPAT  = None
@@ -34,7 +41,7 @@ class EnginePlugin(Object):
     compat = Attr(isa=six.text_type)
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super(EnginePlugin,self).__init__(*args, **kwargs)
         if self.compat is None:
             self.compat = self.AMETHYST_PLUGIN_COMPAT
         if self.AMETHYST_PLUGIN_COMPAT is None:
@@ -46,16 +53,24 @@ class EnginePlugin(Object):
 ENGINE_CALL_ORDER = "BEFORE ACTION AFTER".split()
 ENGINE_CALL_TYPES = ENGINE_CALL_ORDER + "CHECK UNDO".split()
 
+def EngineRole(typ):
+    if typ in ('server', 'client'):
+        return typ
+    raise InvalidEngineRoleException("{} is neither 'server' nor 'client'".format(typ))
+
+EngineRole.SERVER = 'server'
+EngineRole.CLIENT = 'client'
+
 class Engine(Object):
-    role = Attr(isa=six.text_type)
+    role = Attr(EngineRole)
     actions = Attr(builder=lambda: defaultdict(list))
     plugins = Attr(builder=set)
     plugin_names = Attr(builder=set)
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super(Engine,self).__init__(*args, **kwargs)
         self.actions = dict()
-        self.plugin_pkgs = [ amethyst.games.plugin ]
+        self.plugin_pkgs = [ ]
         for plugin in self.plugins:
             self.register(plugin)
 

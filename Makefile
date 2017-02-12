@@ -25,9 +25,9 @@ test:
 
 check:
 	@echo python3 -m flake8 --config=extra/flake8.ini ...
-	@python3 -m flake8 --config=extra/flake8.ini ${PY_FILES}
+	@python3 -m flake8 --config=extra/flake8.ini example/*.py ${PY_FILES}
 	@echo python2 -m flake8 --config=extra/flake8.ini ...
-	@python2 -m flake8 --config=extra/flake8.ini ${PY_FILES}
+	@python2 -m flake8 --config=extra/flake8.ini example/*.py ${PY_FILES}
 	@echo OK
 
 zip: test

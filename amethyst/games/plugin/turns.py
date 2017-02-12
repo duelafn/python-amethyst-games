@@ -19,7 +19,7 @@ from __future__ import division, absolute_import, print_function, unicode_litera
 __all__ = 'Turns'.split()
 
 from amethyst.core import Attr
-from amethyst.games import EnginePlugin
+from amethyst.games.engine import EnginePlugin
 
 class Turns(EnginePlugin):
     AMETHYST_PLUGIN_COMPAT  = "1.0"
