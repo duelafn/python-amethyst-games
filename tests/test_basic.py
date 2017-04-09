@@ -4,13 +4,12 @@
 from __future__ import division, absolute_import, print_function, unicode_literals
 import unittest
 
-from amethyst.games import Engine, EngineRole
+from amethyst.games import Engine
 
 class MyTest(unittest.TestCase):
 
     def test_stupid(self):
-        engine = Engine(dict(role="server"))
-        self.assertEqual(engine.role, EngineRole.SERVER, "Set engine role")
+        engine = Engine()
 
 
 if __name__ == '__main__':

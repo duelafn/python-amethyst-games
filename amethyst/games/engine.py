@@ -17,11 +17,12 @@
 # License along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 __all__ = '''
-Engine EnginePlugin EngineRole
+Engine EnginePlugin
 
 AmethystGameException
   InvalidActionException
-  InvalidEngineRoleException
+  PluginCompatibilityException
+  UnknownActionException
 '''.split()
 
 import six
@@ -32,7 +33,6 @@ from amethyst.core import Object, Attr
 
 class AmethystGameException(Exception): pass
 class InvalidActionException(AmethystGameException): pass
-class InvalidEngineRoleException(AmethystGameException): pass
 class PluginCompatibilityException(AmethystGameException): pass
 class UnknownActionException(AmethystGameException): pass
 
@@ -55,16 +55,7 @@ class EnginePlugin(Object):
 ENGINE_CALL_ORDER = "BEFORE ACTION AFTER".split()
 ENGINE_CALL_TYPES = ENGINE_CALL_ORDER + "CHECK UNDO".split()
 
-def EngineRole(typ):
-    if typ in ('server', 'client'):
-        return typ
-    raise InvalidEngineRoleException("{} is neither 'server' nor 'client'".format(typ))
-
-EngineRole.SERVER = 'server'
-EngineRole.CLIENT = 'client'
-
 class Engine(Object):
-    role = Attr(EngineRole)
     actions = Attr(builder=lambda: defaultdict(list))
     plugins = Attr(builder=set)
     plugin_names = Attr(builder=set)
