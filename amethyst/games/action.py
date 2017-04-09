@@ -63,7 +63,7 @@ class Filter(Object):
             return test == val
         if isinstance(test, (list, tuple, set, frozenset)):
             return val in test
-        raise Exception("Not Implemented")
+        raise TypeError("Not Implemented")
 
     def test_set(self, test, vals):
         if test is None: return None
@@ -79,7 +79,7 @@ class Filter(Object):
                 if t in vals:
                     return True
             return False
-        raise Exception("Not Implemented")
+        raise TypeError("Not Implemented")
 
 class Filterable(Object):
     _ensure_flags_ = frozenset()

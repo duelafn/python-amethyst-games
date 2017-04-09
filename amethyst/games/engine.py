@@ -33,6 +33,8 @@ from amethyst.core import Object, Attr
 class AmethystGameException(Exception): pass
 class InvalidActionException(AmethystGameException): pass
 class InvalidEngineRoleException(AmethystGameException): pass
+class PluginCompatibilityException(AmethystGameException): pass
+class UnknownActionException(AmethystGameException): pass
 
 class EnginePlugin(Object):
     AMETHYST_PLUGIN_COMPAT  = None
@@ -45,9 +47,9 @@ class EnginePlugin(Object):
         if self.compat is None:
             self.compat = self.AMETHYST_PLUGIN_COMPAT
         if self.AMETHYST_PLUGIN_COMPAT is None:
-            raise Exception("Plugin {} does not define an api version".format(self.__class__.__name__))
+            raise PluginCompatibilityException("Plugin {} does not define an api version".format(self.__class__.__name__))
         if self.compat != self.AMETHYST_PLUGIN_COMPAT:
-            raise Exception("Plugin {} imported incompatible serialized data: Loaded {} data, this is version {}".format(self.__class__.__name__, self.compat, self.AMETHYST_PLUGIN_COMPAT))
+            raise PluginCompatibilityException("Plugin {} imported incompatible serialized data: Loaded {} data, this is version {}".format(self.__class__.__name__, self.compat, self.AMETHYST_PLUGIN_COMPAT))
 
 
 ENGINE_CALL_ORDER = "BEFORE ACTION AFTER".split()
@@ -85,7 +87,7 @@ class Engine(Object):
         """
         actions = self.actions.get(name)
         if actions is None:
-            raise Exception("No such action '{}'".format(name))
+            raise UnknownActionException("No such action '{}'".format(name))
         for cb in actions["CHECK"]:
             try:
                 cb(self, **kwargs)
@@ -126,11 +128,11 @@ class Engine(Object):
 
         for dep in plugin.AMETHYST_ENGINE_DEPENDS:
             if dep not in self.plugins:
-                raise Exception("Plugin {} requires plugin {}".format(name, dep))
+                raise PluginCompatibilityException("Plugin {} requires plugin {}".format(name, dep))
 
         for attr in plugin.AMETHYST_ENGINE_METHODS:
             if hasattr(self, attr):
-                raise Exception("Engine already has a method '{}' (attempted override by {})".format(attr, name))
+                raise PluginCompatibilityException("Engine already has a method '{}' (attempted override by {})".format(attr, name))
             self._register_method(attr, plugin)
 
         for attr in dir(plugin):
