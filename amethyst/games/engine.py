@@ -196,9 +196,10 @@ class Engine(Object):
         self.notified[player].append(cb)
 
     def notify(self, player, notice):
-        if player in self.notified:
-            for cb in self.notified[player]:
-                cb(self, player, notice)
+        for p in tupley(player):
+            if p in self.notified:
+                for cb in self.notified[p]:
+                    cb(self, p, notice)
 
     def commit(self, n=0):
         if n < self.undoable:
@@ -310,27 +311,41 @@ class Engine(Object):
             self._grant(players, actions)
         return self
 
-    def expire(self, filters=FILTER_ALL):
+    def server_grant_notice(self, notice):
+        """Process a grant Notice from the server."""
+        # Processes the grant even in client mode.
+        if notice.type != Notice.GRANT:
+            raise TypeError("Expected a 'grant' notice")
+        self._grant(notice.data.get('players'), notice.data.get('actions'))
+        return self
+
+    def _expire(self, filters=FILTER_ALL):
+        if not filters:
+            return
+        self.notify(self.players, Notice(type=Notice.EXPIRE, data=filters))
         for filt in tupley(filters):
             # Optimization for a common case
             if isinstance(filt, ClsFilterAll):
                 self.grants = dict()
                 return
-            elif isinstance(filt, Filterable):
+            elif isinstance(filt, six.text_type):
                 for g in self.grants.values():
-                    g.pop(filt.id, None)
+                    g.pop(filt, None)
             else:
                 for p in self.grants:
                     self.grants[p] = [ a for a in self.grants[p] if not filt.accepts(a) ]
 
-    def server_grant_notice(self, notice):
-        """
-        Process a grant Notice from the server.
-        """
+    def expire(self, filters=FILTER_ALL):
+        if not self.client_mode:
+            self._expire(filters)
+        return self
+
+    def server_expire_notice(self, notice):
+        """Process an expire Notice from the server."""
         # Processes the grant even in client mode.
-        if notice.type != Notice.GRANT:
-            raise TypeError("Expected a 'grant' notice")
-        self._grant(notice.data.get('players'), notice.data.get('actions'))
+        if notice.type != Notice.EXPIRE:
+            raise TypeError("Expected an 'expire' notice")
+        self._expire(notice.data)
         return self
 
     def trigger(self, player, id, kwargs):
@@ -352,7 +367,7 @@ class Engine(Object):
         ok = self.call(a.name, kwargs)
 
         if ok and not a.repeatable:
-            self.expire(a)
+            self.expire(a.id)
 
     def find_grant(self, player, id):
         if player in self.grants:

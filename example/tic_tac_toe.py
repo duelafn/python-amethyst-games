@@ -42,7 +42,7 @@ class TicTacToe_Base(EnginePlugin):
         game.turn_start()
         game.grant(
             game.turn_player(),
-            Action(name="place", data=game.spaces_available(), expires=FILTER_ALL),
+            Action(name="place", data=game.spaces_available()),
         )
 
     def ACTION_begin(self, game, stash):
@@ -131,6 +131,9 @@ class TTTTT(Object):
         if notice.type == Notice.GRANT:
             self.engine.server_grant_notice(notice)
             print("Hey, player {}: GRANT {}".format(player, str(notice.data['actions']['name'])))
+        elif notice.type == Notice.EXPIRE:
+            self.engine.server_expire_notice(notice)
+            print("Hey, player {}: EXPIRE {}".format(player, str(notice.data)))
         elif notice.type == Notice.CALL:
             self.engine.call(notice.name, notice.data)
             print("Hey, player {}: CALL {}".format(player, notice.name))
