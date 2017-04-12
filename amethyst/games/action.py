@@ -15,15 +15,49 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program. If not, see <http://www.gnu.org/licenses/>.
+from __future__ import division, absolute_import, print_function, unicode_literals
 
-__all__ = 'Filter Filterable Achievement Action'.split()
+__all__ = """
+
+IFilter
+   Filter
+   ClsFilterAll FILTER_ALL
+
+Filterable
+   Achievement
+   Action
+
+""".split()
 
 import six
 
 from amethyst.core import Object, Attr
 
-class Filter(Object):
+from .util import nonce, tupley
+
+
+
+class IFilter(Object):
+    """
+    IFilter - filter interface
+
+    Defines required methods for filters.
+    """
+
+    def accepts(self, obj):
+        return False
+
+class ClsFilterAll(IFilter):
+    def accepts(self, obj):
+        return True
+FILTER_ALL = ClsFilterAll()
+
+class Filter(IFilter):
+    """
+    Filter
+    """
     id    = Attr()
+    name  = Attr()
     flag  = Attr()
     group = Attr()
     any   = Attr()
@@ -36,6 +70,9 @@ class Filter(Object):
     def accepts(self, obj):
         rv = []
         rv.append(self.test_item(self.id, obj.id))
+        if rv[-1] is False: return False
+
+        rv.append(self.test_item(self.name, obj.name))
         if rv[-1] is False: return False
 
         rv.append(self.test_set(self.flag, obj.flags))
@@ -83,7 +120,8 @@ class Filter(Object):
 
 class Filterable(Object):
     _ensure_flags_ = frozenset()
-    id = Attr(isa=six.text_type)
+    id = Attr(isa=six.text_type, default=nonce)
+    name = Attr(isa=six.text_type)
     flags = Attr(isa=set)
     group = Attr(isa=six.text_type)
 
@@ -96,13 +134,14 @@ class Filterable(Object):
                 self.flags.update(self._ensure_flags_)
         self.make_immutable()
 
+
 class Achievement(Filterable):
     _ensure_flags_ = frozenset(["Achievement"])
 
     @classmethod
     def from_action(cls, action):
-        init = dict()
-        if action.id: init['id'] = action.id
+        init = dict(id=action.id)
+        if action.name: init['name'] = action.name
         if action.flags: init['flags'] = set(action.flags)
         if action.group: init['group'] = action.group
         return cls(init)
@@ -110,16 +149,17 @@ class Achievement(Filterable):
 class Action(Filterable):
     _ensure_flags_ = frozenset(["Action"])
 
-    name = Attr(isa=six.text_type)
+    kwargs = Attr(isa=dict)
     defaults = Attr(isa=dict)
     data = Attr(isa=dict)
+    repeatable = Attr(bool)
 #     mandatory = Attr(bool)
 #     immediate = Attr(bool)
 #
-#     before = Attr(isa=set)
-#     after = Attr(isa=set)
+#     before = Attr(tupley)
+#     after = Attr(tupley)
 #     dt_expires = Attr(int)
-#     expires = Attr(isa=set)
-#     consumes = Attr(isa=set)
-#     requires = Attr(isa=set)
-#     conflicts = Attr(isa=set)
+    expires = Attr(tupley)
+#     consumes = Attr(tupley)
+#     requires = Attr(tupley)
+#     conflicts = Attr(tupley)

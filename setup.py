@@ -21,7 +21,7 @@ import sys
 
 __version__ = re.search(r'(?m)^__version__\s*=\s*"([\d.]+(?:[\-\+~.]\w+)*)"', open('amethyst/games/__init__.py').read()).group(1)
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 import unittest
 def my_test_suite():
@@ -34,7 +34,7 @@ setup(
     author       = "Dean Serenevy",
     author_email = 'dean@serenevy.net',
     description  = "Game Engine Toolkit",
-    packages     = [ 'amethyst.games' ],
+    packages     = [ 'amethyst.games', 'amethyst.games.plugin' ],
     requires     = [ 'amethyst.core', 'six' ],
     namespace_packages = [ 'amethyst' ],
     test_suite   = 'setup.my_test_suite',

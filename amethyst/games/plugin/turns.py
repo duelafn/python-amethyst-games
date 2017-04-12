@@ -22,8 +22,8 @@ from amethyst.core import Attr
 from amethyst.games.engine import EnginePlugin
 
 class Turns(EnginePlugin):
-    AMETHYST_PLUGIN_COMPAT  = "1.0"
-    AMETHYST_ENGINE_METHODS = "turn_player turn_number turn_round turn_start turn_flag turn_roundflag turn_playerflag".split()
+    AMETHYST_PLUGIN_COMPAT  = 1.0
+    AMETHYST_ENGINE_METHODS = "turn_player turn_player_num turn_number turn_round turn_start turn_flag turn_roundflag turn_playerflag".split()
 
     current_turn   = Attr(int, default=-1)
     current_round  = Attr(int, default=-1)
@@ -32,7 +32,7 @@ class Turns(EnginePlugin):
     def turn_start(self, engine, player=None, round=None, step=1):
         self.current_turn  += step
 
-        if player is None: player = (player + step) % len(engine.players)
+        if player is None: player = self.current_turn % len(engine.players)
         if round  is None: round  = int(self.current_turn / len(engine.players))
 
         self.current_round  = round

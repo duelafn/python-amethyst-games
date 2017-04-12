@@ -1,5 +1,7 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
+"""
+
+"""
 # Copyright (C) 2017  Dean Serenevy
 #
 # This program is free software: you can redistribute it and/or modify it
@@ -14,15 +16,22 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program. If not, see <http://www.gnu.org/licenses/>.
 from __future__ import division, absolute_import, print_function, unicode_literals
-import unittest
+__all__ = 'Notice'.split()
 
-from example.tic_tac_toe import TicTacToe
+import six
 
-class MyTest(unittest.TestCase):
+from amethyst.core import Object, Attr
 
-    def test_basic(self):
-        game = TicTacToe()
+class Notice(Object):
+    name = Attr(isa=six.text_type)
+    type = Attr(isa=six.text_type, builder=lambda: "notice")
+    data = Attr(isa=dict)
 
+    GRANT  = ':grant'
+    EXPIRE = ':expire'
+    CALL   = ':call'
+    MSG    = ':msg'
 
-if __name__ == '__main__':
-    unittest.main()
+    def __init__(self, *args, **kwargs):
+        super(Notice,self).__init__(*args, **kwargs)
+        self.make_immutable()

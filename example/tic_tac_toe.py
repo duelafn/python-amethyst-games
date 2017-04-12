@@ -15,42 +15,73 @@
 # License along with this program. If not, see <http://www.gnu.org/licenses/>.
 from __future__ import division, absolute_import, print_function, unicode_literals
 
+import copy
 import six
 
+from six.moves import input
+
 from amethyst.core  import Object, Attr
-from amethyst.games import Engine, EnginePlugin, Action, InvalidActionException
+from amethyst.games import Engine, EnginePlugin, Action, FILTER_ALL, Filter, Notice
 from amethyst.games.plugin import Turns
 
-class TicTacToe_Base(EnginePlugin):
+import argparse
+def getopts():
+    parser = argparse.ArgumentParser(description="""Tic-Tac-Toe Example Game""")
+    parser.add_argument('--ai', type=str, help='AI type')
+    parser.add_argument('--size', type=int, default=3, help='Board size')
+    return parser.parse_args()
 
-    def start_game(self, game):
-        game.next_turn()
+
+class TicTacToe_Base(EnginePlugin):
+    AMETHYST_PLUGIN_COMPAT  = 1.0
+
+    def __init__(self, *args, **qwargs):
+        super(TicTacToe_Base,self).__init__(*args, **qwargs)
 
     def next_turn(self, game):
         game.turn_start()
-        game.grant(game.turn_player_num(), Action("place", data=game.spaces_available()))
+        game.grant(
+            game.turn_player(),
+            Action(name="place", data=game.spaces_available(), expires=FILTER_ALL),
+        )
 
-    def CHECK_place(self, game, x, y):
-        if game.board[y][x] is not None:
-            raise InvalidActionException()
+    def ACTION_begin(self, game, stash):
+        self.next_turn(game)
 
-    def ACTION_place(self, game, x, y):
-        game.board[y][x] = game.turn_player_num()
-        game.notify(Action("place", data=dict(x=x, y=y, mark=game.turn_player_num())))
-        game.next_turn()
+    def CHECK_place(self, game, stash, x, y):
+        return game.board[int(y)][int(x)] is None
+
+    def ACTION_place(self, game, stash, x, y):
+        game.board[int(y)][int(x)] = game.turn_player_num()
+        game.grant(
+            game.turn_player(),
+            Action(name="end_turn"),
+        )
+
+    def UNDO_place(self, game, stash, x, y):
+        game.board[int(y)][int(x)] = None
+
+    def ACTION_end_turn(self, game, stash):
+        self.next_turn(game)
 
 
 class TicTacToe(Engine):
-    board  = Attr()
-    width  = Attr(default=3)
-    height = Attr(default=3)
+    board   = Attr()
+    width   = Attr(default=3)
+    height  = Attr(default=3)
 
     def __init__(self, *args, **kwargs):
         super(TicTacToe,self).__init__(*args, **kwargs)
         if self.board is None:
             self.board = [ [None] * self.width for i in range(self.height) ]
-        self.register(Turns)
-        self.register(TicTacToe_Base)
+        self.register(Turns())
+        self.register(TicTacToe_Base())
+
+    def __str__(self):
+        board = []
+        for row in self.board:
+            board.append("".join( "_" if x is None else str(x) for x in row ))
+        return "\n".join(board)
 
     def spaces_available(self):
         avail = []
@@ -60,16 +91,51 @@ class TicTacToe(Engine):
                     avail.append( (i,j) )
         return avail
 
-    def grant(self, players, *actions):
-        # Note: send grands in single batch to help UI and AI choose
-        if isinstance(players, (int, six.string_types)):
-            players = (players,)
-        for p in players:
-            for a in actions:
-                print("{}: {}".format(p, a.to_json()))
 
-    def notify(self, action):
-        print("NOTICE: {}".format(action.to_json()))
+# Tele-Type Tic-Tac-Toe :)
+class TTTTT(Object):
+    id = Attr()
+    engine = Attr(default=lambda: TicTacToe(client=True))
+    player = Attr(int)
+
+    def prompt(self):
+        return input("Player {}: ".format(self.player))
+
+    def handle(self):
+        cmd = self.prompt().split()
+        kwargs = dict()
+
+        filt = None
+        if cmd[0] == '?':
+            g = set(self.engine.list_grants(self.player))
+            G = set(self.server.list_grants(self.player))
+            for x in g & G: print(x)
+            for x in g - G: print("local  only!", x)
+            for x in G - g: print("server only!", x)
+
+        elif cmd[0] == 'e':
+            filt = Filter(name="end_turn")
+
+        else:
+            filt = Filter(name="place")
+            kwargs['x'] = cmd[0]
+            kwargs['y'] = cmd[1]
+
+        grants = self.engine.list_grants(self.player, filt) if filt else None
+        if grants:
+            return grants[0].id, kwargs
+        else:
+            return None, None
+
+    def on_event(self, _, player, notice):
+        if notice.type == Notice.GRANT:
+            self.engine.server_grant_notice(notice)
+            print("Hey, player {}: GRANT {}".format(player, str(notice.data['actions']['name'])))
+        elif notice.type == Notice.CALL:
+            self.engine.call(notice.name, notice.data)
+            print("Hey, player {}: CALL {}".format(player, notice.name))
+        else:
+            print("Hey, player {}: {}".format(player, str(notice)))
 
 
 class AI(Object):
@@ -80,28 +146,45 @@ class DumbAI(AI):
     pass
 
 
-import argparse
-def getopts():
-    parser = argparse.ArgumentParser(description="""Tool for doing stuff""")
 
-    # http://docs.python.org/2/library/argparse.html
-    parser.add_argument('first', type=int, help='first weld number to export')
-    parser.add_argument('last',  type=int, help='last weld number to export')
+def MAIN1(argv):
+    game = TicTacToe(dict( width=argv.size, height=argv.size ))
+    ui = TTTTT()
 
-    parser.add_argument('--machine', '-m', type=str, help='machine name (defaults to current machine name)')
-    parser.add_argument('--output', '-o', type=str, default="welds", help='output directory (default "welds")')
-
-    return parser.parse_args()
+    state = game.initialize()
+    ui.engine.initialize(state)
 
 
-def MAIN(argv):
-    game = TicTacToe()
-    game.start()
-    move = input("Move? ").split()
-    while len(move) == 2:
-        game.call("place", x=move[0], y=move[1])
 
+
+def MAIN2(argv):
+    ## Build our objects.
+    # Here we pretend that multiple players are running independently
+    # communicating with an independent server (perhaps all on different
+    # machines).
+    server = TicTacToe(dict( width=argv.size, height=argv.size ))
+    players = [ TTTTT(id=0, player=0), TTTTT(id=1, player=1) ]
+
+    # Server gets initilaized first, then initilization data passed to the clients.
+    server.players = [ p.id for p in players ]
+    init = server.initialize()
+    for p in players:
+        p.server = server
+        p.engine.initialize(copy.deepcopy(init))
+        p.engine.set_state(server.get_state(p.id))
+
+    for player in players:
+        server.observe(player.id, player.on_event)
+
+    server.call("begin")
+
+    while True:
+        player = server.turn_player()
+        id, kwargs = players[player].handle()
+        if id is not None:
+            server.trigger(player, id, kwargs)
+            print(server)
 
 
 if __name__ == '__main__':
-    MAIN(getopts())
+    MAIN2(getopts())
