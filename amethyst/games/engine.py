@@ -110,7 +110,7 @@ class Engine(Object):
 
     @ivar plugins: list of plugin `Object`s.
 
-    @ivar players: list of players. String or integer identifiers only.
+    @ivar players: list of players. String or integer identifiers.
 
     @ivar grants: Currently active grants. dict: PLAYER_ID => list(GRANTS)
 
@@ -121,41 +121,91 @@ class Engine(Object):
     grants   = Attr(isa=dict, default=dict)
     undoable = Attr(isa=int,  default=0)
     # Private attributes:
-    #   notified:      dict: PLAYER => CALLBACK
+    #   notified:      dict: PLAYER => [ [ COUNTER, CALLBACK ], ... ]
     #   actions:       dict: NAME => CALLBACK
     #   journal:       list: tuple(action, kwargs)
     #   plugin_pkgs:   list: plugin search path (packages containing plugins)
     #   plugin_names:   set: cached list of plugin names as strings (for dependency checking)
+    #   _client_mode:  bool: True when running in client mode
 
     def __init__(self, *args, **kwargs):
-        self.client_mode = kwargs.pop("client", False)
+        self._client_mode = kwargs.pop("client", False)
         self.actions = dict()
-        self.plugin_pkgs = [ ]
-        self.plugin_names = set()
         self.journal = [ ]
         self.notified = dict()
+        self.plugin_names = set()
+        self.plugin_pkgs = [ ]
+
         super(Engine,self).__init__(*args, **kwargs)
         for plugin in self.plugins:
             self.register(plugin)
 
+
+
+
     def is_client(self):
-        return self.client_mode
+        """True when running in client mode"""
+        return self._client_mode
+
     def is_server(self):
-        return not self.client_mode
+        """True when running in server mode"""
+        return not self._client_mode
+
 
     def make_mutable(self):
+        """Marks engine and all plugins mutable"""
         super(Engine,self).make_mutable()
         for p in self.plugins:
             p.make_mutable()
 
     def make_immutable(self):
+        """Marks engine and all plugins immutable"""
         super(Engine,self).make_immutable()
         for p in self.plugins:
             p.make_immutable()
 
     def call(self, name, kwargs=None):
-        """
-        Call an action by name. Raises an exception if action does not exist.
+        """Call an action by name.
+
+        Main mover and shaker of the engine. When an action is called, we
+        set the immutable flag and execute the `CHECK_{action}` method in
+        each registered plugin in registration order. If any return False,
+        the action is aborted and False is returned.
+
+        @note: Technically, the immutability flag is only advisory, but
+        since there is no unrolling mechanism for partially completed
+        CHECK, it is a bad idea for plugins to attempt to bypass immutability.
+
+        After the CHECK phase, the immutable flag is unset, a checkpoint is
+        made and the action is accepted / added to the journal. Then, for
+        each of BEFORE, ACTION, and AFTER phases the `{phase}_{action}`
+        method is executed for each registered plugin in registration
+        order.
+
+        `{phase}_{action}` methods should have a signature:
+
+            def PHASE_action(self, engine, stash, **kwargs):
+
+        * `self`: the engine plugin itself
+        * `engine`: this engine object
+        * `stash`: a dictionary to save state for this particular action event
+        * `kwargs`: any arguments required for the action
+
+        After the action executes, a copy of the action arguments will be
+        passed to the `CENSOR_{action}` method once for each player. The
+        CENSOR may remove any information in the action arguments which
+        should not be shared with the indicated player. The CENSOR method
+        has a different signature, it takes a player id and kwargs are
+        passed as a dictionary reference:
+
+            def CENSOR_action(self, engine, stash, player, kwargs):
+
+
+        @todo 1.0: Automatic roll-back if an exception is raised in any of
+        the action handlers.
+
+        @raise UnknownActionException: If action does not exist.
+
         """
         if kwargs is None:
             kwargs=dict()
@@ -165,41 +215,78 @@ class Engine(Object):
 
         stash = dict()
         if "CHECK" in actions:
-            self.make_immutable()
-            for cb in actions["CHECK"]:
-                if not cb(self, stash, **kwargs):
-                    return False
-            self.make_mutable()
+            try:
+                self.make_immutable()
+                for cb in actions["CHECK"]:
+                    if not cb(self, stash, **kwargs):
+                        return False
+            finally:
+                self.make_mutable()
 
+        # Save game state for UNDO and roll-back
         self.journal.append( (name, kwargs, stash, { k: copy.copy(v) for k, v in six.iteritems(self.grants) }) )
+
+        # Execute the action, all the fun happens here
         for stage in ENGINE_CALL_ORDER:
             if stage in actions:
                 for cb in actions[stage]:
                     cb(self, stash, **kwargs)
 
-        for player in self.players:
+        # If anyone wants to be notified of events, send them CENSOR-ed information.
+        for player in self.notified:
+            p_kwargs = copy.deepcopy(kwargs)
             if "CENSOR" in actions:
-                p_kwargs = copy.deepcopy(kwargs)
                 for cb in actions["CENSOR"]:
                     cb(self, stash, player, p_kwargs)
-            else:
-                p_kwargs = kwargs
             self.notify(player, Notice(name=name, type=Notice.CALL, data=p_kwargs))
 
         if actions.get('autocommit', False):
             self.commit()
         return True
 
+
     def observe(self, player, cb):
+        """
+        Register a callback to receive all notifications for the given player.
+
+        Callback should have the following signature:
+
+            def callback(engine, seq, player, notice):
+
+        * `engine`: this engine object
+        * `seq`: notification sequence number
+        * `player`: player id
+        * `notice`: Notice object
+
+        The sequence number is a private, increasing notification sequence
+        number. The first notification an observer will receive will have
+        sequence number 0 and the sequence will increase by exactly 1 for
+        each notification sent. A client should track its sequence state
+        and request a reload of the complete game state if a non-sequential
+        sequence number is ever received.
+        """
         if not player in self.notified:
             self.notified[player] = []
-        self.notified[player].append(cb)
+        self.notified[player].append([ -1, cb ])
+
+    def unobserve(self, player, cb):
+        """
+        Unregister a callback to receive all notifications for the given player.
+
+        Callback must be the identical function or method passed to the
+        `observe` method.
+        """
+        if player in self.notified:
+            self.notified[player] = [ pair for pair in self.notified[player] if pair[1] is not cb ]
+
 
     def notify(self, player, notice):
+        """Send a notice to one or more players"""
         for p in tupley(player):
             if p in self.notified:
-                for cb in self.notified[p]:
-                    cb(self, p, notice)
+                for pair in self.notified[p]:
+                    pair[0] += 1
+                    pair[1](self, pair[0], p, notice)
 
     def commit(self, n=0):
         if n < self.undoable:
@@ -215,6 +302,8 @@ class Engine(Object):
         """
         Register a plugin by name. Searches registered plugin packages and
         initializes an instance from the passed arguments.
+
+        @todo: is this needed / wanted? Does it work?
         """
         if isinstance(cls, six.string_types):
             for pkg in self.plugin_pkgs:
@@ -261,6 +350,7 @@ class Engine(Object):
             lambda *args, **kwargs: getattr(plugin, name)(self, *args, **kwargs)
         )
 
+
     def initialize(self, *args):
         if len(args) > 0:
             stuff = args[0]
@@ -292,11 +382,11 @@ class Engine(Object):
             except IndexError:
                 pass
 
-    def dumps(self, data):
-        return json.dumps(data, default=self.JSONEncoder)
-
-    def loads(self, data):
-        return json.loads(data, object_hook=self.JSONObjectHook)
+#     def dumps(self, data):
+#         return json.dumps(data, default=self.JSONEncoder)
+#
+#     def loads(self, data):
+#         return json.loads(data, object_hook=self.JSONObjectHook)
 
     def _grant(self, players, actions):
         for p in tupley(players):
@@ -307,7 +397,7 @@ class Engine(Object):
                 self.grants[p][a.id] = a
 
     def grant(self, players, actions):
-        if not self.client_mode:
+        if not self._client_mode:
             self._grant(players, actions)
         return self
 
@@ -318,6 +408,7 @@ class Engine(Object):
             raise TypeError("Expected a 'grant' notice")
         self._grant(notice.data.get('players'), notice.data.get('actions'))
         return self
+
 
     def _expire(self, filters=FILTER_ALL):
         if not filters:
@@ -336,7 +427,7 @@ class Engine(Object):
                     self.grants[p] = [ a for a in self.grants[p] if not filt.accepts(a) ]
 
     def expire(self, filters=FILTER_ALL):
-        if not self.client_mode:
+        if not self._client_mode:
             self._expire(filters)
         return self
 
@@ -347,6 +438,7 @@ class Engine(Object):
             raise TypeError("Expected an 'expire' notice")
         self._expire(notice.data)
         return self
+
 
     def trigger(self, player, id, kwargs):
         a = self.find_grant(player, id)
@@ -370,6 +462,9 @@ class Engine(Object):
             self.expire(a.id)
 
     def find_grant(self, player, id):
+        """
+        Find a player grant by id and returns it, else returns `None`.
+        """
         if player in self.grants:
             if id in self.grants[player]:
                 a = self.grants[player][id]
@@ -378,6 +473,9 @@ class Engine(Object):
         return None
 
     def list_grants(self, player, filt=FILTER_ALL):
+        """
+        Return a tuple of player grants matching the requested filter (default all grants).
+        """
         if player not in self.grants:
             return ()
 

@@ -127,7 +127,7 @@ class TTTTT(Object):
         else:
             return None, None
 
-    def on_event(self, _, player, notice):
+    def on_event(self, game, seq, player, notice):
         if notice.type == Notice.GRANT:
             self.engine.server_grant_notice(notice)
             print("Hey, player {}: GRANT {}".format(player, str(notice.data['actions']['name'])))
