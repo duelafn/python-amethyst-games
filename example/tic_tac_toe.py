@@ -49,17 +49,17 @@ class TicTacToe_Base(EnginePlugin):
         self.next_turn(game)
 
     def CHECK_place(self, game, stash, x, y):
-        return game.board[int(y)][int(x)] is None
+        return game.board[y][x] is None
 
     def ACTION_place(self, game, stash, x, y):
-        game.board[int(y)][int(x)] = game.turn_player_num()
+        game.board[y][x] = game.turn_player_num()
         game.grant(
             game.turn_player(),
             Action(name="end_turn"),
         )
 
     def UNDO_place(self, game, stash, x, y):
-        game.board[int(y)][int(x)] = None
+        game.board[y][x] = None
 
     def ACTION_end_turn(self, game, stash):
         self.next_turn(game)
@@ -118,8 +118,8 @@ class TTTTT(Object):
 
         else:
             filt = Filter(name="place")
-            kwargs['x'] = cmd[0]
-            kwargs['y'] = cmd[1]
+            kwargs['x'] = int(cmd[0])
+            kwargs['y'] = int(cmd[1])
 
         grants = self.engine.list_grants(self.player, filt) if filt else None
         if grants:
