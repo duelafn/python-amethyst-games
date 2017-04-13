@@ -244,6 +244,45 @@ class Engine(Object):
             self.commit()
         return True
 
+    def trigger(self, player, id, kwargs):
+        """
+        Player interface to actions
+
+        call() may be the mover and shaker of the engine, but it lives in a
+        gated community, and trigger() holds the keys.
+
+        Actions perform operations on the game state, but actions should
+        never be called directly by players. Instead, a player receives
+        grants for each action is has been granted permission to trigger.
+        When the player wants to perform one of those actions, it triggers
+        the action by the grant id, passing along any arguments that the
+        action requires.
+
+        Triggered actions will be processed and the action will either
+        succeed or fail, causing the grant to be consumed or not (though a
+        grant may also be flagged as repeatable in which case it will not
+        be consumed even if successful).
+        """
+
+        a = self.find_grant(player, id)
+        if not a: return False
+
+        # Actions can default or force certain kwargs:
+        if a.kwargs or a.defaults:
+            kwargs = copy.copy(kwargs)
+        if a.kwargs:
+            kwargs.update(a.kwargs)
+        if a.defaults:
+            for k, v in six.iteritems(a.defaults):
+                kwargs.setdefault(k, v)
+
+        # Finally call the action
+        ok = self.call(a.name, kwargs)
+
+        if ok:
+            self.expire(a.expires)
+            if not a.repeatable:
+                self.expire(a.id)
 
     def observe(self, player, cb):
         """
@@ -258,16 +297,16 @@ class Engine(Object):
         * `player`: player id
         * `notice`: Notice object
 
-        The sequence number is a private, increasing notification sequence
-        number. The first notification an observer will receive will have
-        sequence number 0 and the sequence will increase by exactly 1 for
-        each notification sent. A client should track its sequence state
-        and request a reload of the complete game state if a non-sequential
-        sequence number is ever received.
+        The sequence number is a per-callback, sequentially increasing
+        notification id. The first notification an observer will receive
+        will have sequence number 1 and the sequence will increase by
+        exactly 1 for each notification sent to that callback. A client on
+        the other end of that callback should track the sequence state and
+        request a the full game state if an out-of-sequence id is received.
         """
         if not player in self.notified:
             self.notified[player] = []
-        self.notified[player].append([ -1, cb ])
+        self.notified[player].append([ 0, cb ])
 
     def unobserve(self, player, cb):
         """
@@ -439,27 +478,6 @@ class Engine(Object):
         self._expire(notice.data)
         return self
 
-
-    def trigger(self, player, id, kwargs):
-        a = self.find_grant(player, id)
-        if not a: return False
-
-        self.expire(a.expires)
-
-        # Actions can default or force certain kwargs:
-        if a.kwargs or a.defaults:
-            kwargs = copy.copy(kwargs)
-        if a.kwargs:
-            kwargs.update(a.kwargs)
-        if a.defaults:
-            for k, v in six.iteritems(a.defaults):
-                kwargs.setdefault(k, v)
-
-        # Finally call the action
-        ok = self.call(a.name, kwargs)
-
-        if ok and not a.repeatable:
-            self.expire(a.id)
 
     def find_grant(self, player, id):
         """
