@@ -16,6 +16,7 @@
 from __future__ import division, absolute_import, print_function, unicode_literals
 
 import copy
+import random
 import six
 
 from six.moves import input
@@ -141,13 +142,18 @@ class TTTTT(Object):
             print("Hey, player {}: {}".format(player, str(notice)))
 
 
-class AI(Object):
-    engine = Attr()
-
-
-class DumbAI(AI):
+class AI(TTTTT):
     pass
 
+class DumbAI(AI):
+    def handle(self):
+        grants = self.engine.list_grants(self.player)
+        if grants:
+           if grants[0].name == 'end_turn':
+               return grants[0].id, dict()
+           if grants[0].name == 'place':
+               x, y = random.choice(grants[0].data)
+               return grants[0].id, dict(x=x, y=y)
 
 
 def MAIN1(argv):
@@ -166,7 +172,7 @@ def MAIN2(argv):
     # communicating with an independent server (perhaps all on different
     # machines).
     server = TicTacToe(dict( width=argv.size, height=argv.size ))
-    players = [ TTTTT(id=0, player=0), TTTTT(id=1, player=1) ]
+    players = [ TTTTT(id=0, player=0), DumbAI(id=1, player=1) ]
 
     # Server gets initilaized first, then initilization data passed to the clients.
     server.players = [ p.id for p in players ]
