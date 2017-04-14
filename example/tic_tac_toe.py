@@ -45,23 +45,23 @@ class TicTacToe_Base(EnginePlugin):
             Action(name="place", data=game.spaces_available()),
         )
 
-    def ACTION_begin(self, game, stash):
+    def _begin_action_(self, game, stash):
         self.next_turn(game)
 
-    def CHECK_place(self, game, stash, x, y):
+    def _place_check_(self, game, stash, x, y):
         return game.board[y][x] is None
 
-    def ACTION_place(self, game, stash, x, y):
+    def _place_action_(self, game, stash, x, y):
         game.board[y][x] = game.turn_player_num()
         game.grant(
             game.turn_player(),
             Action(name="end_turn"),
         )
 
-    def UNDO_place(self, game, stash, x, y):
+    def _place_undo_(self, game, stash, x, y):
         game.board[y][x] = None
 
-    def ACTION_end_turn(self, game, stash):
+    def _end_turn_action_(self, game, stash):
         self.next_turn(game)
 
 

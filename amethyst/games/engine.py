@@ -102,8 +102,8 @@ class EnginePlugin(Object):
 
 
 
-ENGINE_CALL_ORDER = "BEFORE ACTION AFTER".split()
-ENGINE_CALL_TYPES = ENGINE_CALL_ORDER + "CENSOR CHECK UNDO".split()
+ENGINE_CALL_ORDER = "before action after".split()
+ENGINE_CALL_TYPES = ENGINE_CALL_ORDER + "censor check undo".split()
 
 class Engine(Object):
     """Engine
@@ -168,23 +168,23 @@ class Engine(Object):
         """Call an action by name.
 
         Main mover and shaker of the engine. When an action is called, we
-        set the immutable flag and execute the `CHECK_{action}` method in
+        set the immutable flag and execute the `_{action}_check_` method in
         each registered plugin in registration order. If any return False,
         the action is aborted and False is returned.
 
         @note: Technically, the immutability flag is only advisory, but
         since there is no unrolling mechanism for partially completed
-        CHECK, it is a bad idea for plugins to attempt to bypass immutability.
+        _check_, it is a bad idea for plugins to attempt to bypass immutability.
 
-        After the CHECK phase, the immutable flag is unset, a checkpoint is
+        After the _check_ phase, the immutable flag is unset, a checkpoint is
         made and the action is accepted / added to the journal. Then, for
-        each of BEFORE, ACTION, and AFTER phases the `{phase}_{action}`
+        each of before, action, and after phases the `_{action}_{phase}_`
         method is executed for each registered plugin in registration
         order.
 
-        `{phase}_{action}` methods should have a signature:
+        `_{action}_{phase}_` methods should have a signature:
 
-            def PHASE_action(self, engine, stash, **kwargs):
+            def _action_phase_(self, engine, stash, **kwargs):
 
         * `self`: the engine plugin itself
         * `engine`: this engine object
@@ -192,13 +192,13 @@ class Engine(Object):
         * `kwargs`: any arguments required for the action
 
         After the action executes, a copy of the action arguments will be
-        passed to the `CENSOR_{action}` method once for each player. The
-        CENSOR may remove any information in the action arguments which
-        should not be shared with the indicated player. The CENSOR method
+        passed to the `_{action}_censor_` method once for each player. The
+        censor may remove any information in the action arguments which
+        should not be shared with the indicated player. The censor method
         has a different signature, it takes a player id and kwargs are
         passed as a dictionary reference:
 
-            def CENSOR_action(self, engine, stash, player, kwargs):
+            def _action_censor_(self, engine, stash, player, kwargs):
 
 
         @todo 1.0: Automatic roll-back if an exception is raised in any of
@@ -214,10 +214,10 @@ class Engine(Object):
             raise UnknownActionException("No such action '{}'".format(name))
 
         stash = dict()
-        if "CHECK" in actions:
+        if "check" in actions:
             try:
                 self.make_immutable()
-                for cb in actions["CHECK"]:
+                for cb in actions["check"]:
                     if not cb(self, stash, **kwargs):
                         return False
             finally:
@@ -232,11 +232,11 @@ class Engine(Object):
                 for cb in actions[stage]:
                     cb(self, stash, **kwargs)
 
-        # If anyone wants to be notified of events, send them CENSOR-ed information.
+        # If anyone wants to be notified of events, send them censor-ed information.
         for player in self.notified:
             p_kwargs = copy.deepcopy(kwargs)
-            if "CENSOR" in actions:
-                for cb in actions["CENSOR"]:
+            if "censor" in actions:
+                for cb in actions["censor"]:
                     cb(self, stash, player, p_kwargs)
             self.notify(player, Notice(name=name, type=Notice.CALL, data=p_kwargs))
 
@@ -369,18 +369,19 @@ class Engine(Object):
             self._register_method(attr, plugin)
 
         for attr in dir(plugin):
-            for prefix in ENGINE_CALL_TYPES:
-                if attr.startswith(prefix + "_"):
-                    action = attr[(1+len(prefix)):]
-                    if action not in self.actions:
-                        self.actions[action] = dict()
-                    if prefix not in self.actions[action]:
-                        self.actions[action][prefix] = list()
+            if attr.startswith("_") and attr.endswith("_"):
+                for prefix in ENGINE_CALL_TYPES:
+                    if attr.endswith("_{}_".format(prefix)) and len(attr) > 3 + len(prefix):
+                        action = attr[1:-(2+len(prefix)):]
+                        if action not in self.actions:
+                            self.actions[action] = dict()
+                        if prefix not in self.actions[action]:
+                            self.actions[action][prefix] = list()
 
-                    if prefix in ENGINE_CALL_ORDER and not hasattr(plugin, "UNDO_{}".format(action)):
-                        self.actions[action]['autocommit'] = True
+                        if prefix in ENGINE_CALL_ORDER and not hasattr(plugin, "_{}_undo_".format(action)):
+                            self.actions[action]['autocommit'] = True
 
-                    self.actions[action][prefix].append(getattr(plugin, attr))
+                        self.actions[action][prefix].append(getattr(plugin, attr))
 
     def _register_method(self, name, plugin):
         """Method exists just to make closure work"""
