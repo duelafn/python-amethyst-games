@@ -51,6 +51,6 @@ debbuild: test sdist
 	cd debbuild/${PKGNAME}-${PKG_VERSION} && dpkg-buildpackage -rfakeroot -uc -us
 
 clean:
-	rm -rf build dist debbuild
+	rm -rf build dist debbuild .ttttt
 	rm -f MANIFEST
 	pyclean .

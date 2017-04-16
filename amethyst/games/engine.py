@@ -20,6 +20,7 @@ __all__ = '''
 Engine EnginePlugin
 
 AmethystGameException
+  NotificationSequenceException
   PluginCompatibilityException
   UnknownActionException
 
@@ -42,6 +43,7 @@ NOBODY = None
 class AmethystGameException(Exception): pass
 class PluginCompatibilityException(AmethystGameException): pass
 class UnknownActionException(AmethystGameException): pass
+class NotificationSequenceException(AmethystGameException): pass
 
 class EnginePlugin(Object):
     """EnginePlugin
@@ -121,15 +123,19 @@ class Engine(Object):
     grants   = Attr(isa=dict, default=dict)
     undoable = Attr(isa=int,  default=0)
     # Private attributes:
-    #   notified:      dict: PLAYER => [ [ COUNTER, CALLBACK ], ... ]
+    #   _client_mode:  bool: True when running in client mode
+    #   _client_seq:    int: client event sequence number
+    #   _initialization_data: dict: cached initialization data
     #   actions:       dict: NAME => CALLBACK
     #   journal:       list: tuple(action, kwargs)
-    #   plugin_pkgs:   list: plugin search path (packages containing plugins)
+    #   notified:      dict: PLAYER => [ [ COUNTER, CALLBACK ], ... ]
     #   plugin_names:   set: cached list of plugin names as strings (for dependency checking)
-    #   _client_mode:  bool: True when running in client mode
+    #   plugin_pkgs:   list: plugin search path (packages containing plugins)
 
     def __init__(self, *args, **kwargs):
         self._client_mode = kwargs.pop("client", False)
+        self._client_seq = 0
+        self._initialization_data = None
         self.actions = dict()
         self.journal = [ ]
         self.notified = dict()
@@ -139,8 +145,6 @@ class Engine(Object):
         super(Engine,self).__init__(*args, **kwargs)
         for plugin in self.plugins:
             self.register(plugin)
-
-
 
 
     def is_client(self):
@@ -404,9 +408,13 @@ class Engine(Object):
                     init = None
                 p.initialize(init)
         else:
-            return dict(
+            self._initialization_data = dict(
                 plugin_init=[ p.initialize() for p in self.plugins ],
             )
+            return self._initialization_data
+
+    def get_initialization_data(self):
+        return self._initialization_data
 
     def get_state(self, player):
         d = copy.deepcopy(self.dict)
@@ -422,11 +430,11 @@ class Engine(Object):
             except IndexError:
                 pass
 
-#     def dumps(self, data):
-#         return json.dumps(data, default=self.JSONEncoder)
-#
-#     def loads(self, data):
-#         return json.loads(data, object_hook=self.JSONObjectHook)
+    def dumps(self, data):
+        return json.dumps(data, default=self.JSONEncoder)
+
+    def loads(self, data):
+        return json.loads(data, object_hook=self.JSONObjectHook)
 
     def _grant(self, players, actions):
         for p in tupley(players):
@@ -449,6 +457,32 @@ class Engine(Object):
         self._grant(notice.data.get('players'), notice.data.get('actions'))
         return self
 
+    def client_event_listener(self, game, seq, player, notice):
+        """
+        Responds to standard engine-related notifications. Client engines
+        should attach this method via `.observe()` in order to keep the
+        local engine up to date.
+
+          GRANT: Adds grants to grant list
+
+          EXPIRE: Expires grants from grant list
+
+          CALL: Calls cooresponding action
+
+        @raise NotificationSequenceException: If receive a non-consecutive
+        sequence number. In this case, client should re-syncronize via
+        get_state/set_state.
+        """
+        if seq != self._client_seq + 1:
+            raise NotificationSequenceException("got {} expected {}".format(seq, self._client_seq))
+        self._client_seq += 1
+
+        if notice.type == Notice.GRANT:
+            self.server_grant_notice(notice)
+        elif notice.type == Notice.EXPIRE:
+            self.server_expire_notice(notice)
+        elif notice.type == Notice.CALL:
+            self.call(notice.name, notice.data)
 
     def _expire(self, filters=FILTER_ALL):
         if not filters:
