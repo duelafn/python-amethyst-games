@@ -1,3 +1,9 @@
+amethyst-games (0.5.1-1) unstable; urgency=low
+
+  * New release
+
+ -- Dean Serenevy <dean@serenevy.net>  Sun, 16 Apr 2017 11:37:12 -0400
+
 amethyst-games (0.5.0-1) unstable; urgency=low
 
   * Initial package creation
