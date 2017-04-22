@@ -73,6 +73,8 @@ class EnginePlugin(Object):
     """
     AMETHYST_ENGINE_DEPENDS = ()
     AMETHYST_ENGINE_METHODS = ()
+    AMETHYST_ENGINE_DEFAULT_METHOD_PREFIX = ""
+    AMETHYST_ENGINE_DEFAULT_METHOD_SUFFIX = ""
     # Compatibility: class attr hard-coded, instance attr used when passing
     # constructed objects over the wire. Allows server to verify that the
     # server plugin version is compatible with the client plugin version.
@@ -80,6 +82,8 @@ class EnginePlugin(Object):
     compat = Attr(isa=float)
 
     def __init__(self, *args, **kwargs):
+        self.amethyst_method_prefix = kwargs.pop("amethyst_method_prefix", self.AMETHYST_ENGINE_DEFAULT_METHOD_PREFIX)
+        self.amethyst_method_suffix = kwargs.pop("amethyst_method_suffix", self.AMETHYST_ENGINE_DEFAULT_METHOD_SUFFIX)
         super(EnginePlugin,self).__init__(*args, **kwargs)
         if self.compat is None:
             self.compat = self.AMETHYST_PLUGIN_COMPAT
@@ -368,9 +372,15 @@ class Engine(Object):
                 raise PluginCompatibilityException("Plugin {} requires plugin {}".format(name, dep))
 
         for attr in tupley(plugin.AMETHYST_ENGINE_METHODS):
-            if hasattr(self, attr):
-                raise PluginCompatibilityException("Engine already has a method '{}' (attempted override by {})".format(attr, name))
-            self._register_method(attr, plugin)
+            meth = attr[1:] if attr.startswith("_") else attr
+            if plugin.amethyst_method_prefix:
+                meth = "{}{}".format(plugin.amethyst_method_prefix, meth)
+            if plugin.amethyst_method_suffix:
+                meth = "{}{}".format(meth, plugin.amethyst_method_suffix)
+
+            if hasattr(self, meth):
+                raise PluginCompatibilityException("Engine already has a method '{}' (attempted override by {})".format(meth, name))
+            self._register_method(meth, getattr(plugin, attr))
 
         for attr in dir(plugin):
             if attr.startswith("_") and attr.endswith("_"):
@@ -387,11 +397,11 @@ class Engine(Object):
 
                         self.actions[action][prefix].append(getattr(plugin, attr))
 
-    def _register_method(self, name, plugin):
+    def _register_method(self, name, callback):
         """Method exists just to make closure work"""
         setattr(
             self, name,
-            lambda *args, **kwargs: getattr(plugin, name)(self, *args, **kwargs)
+            lambda *args, **kwargs: callback(self, *args, **kwargs)
         )
 
 

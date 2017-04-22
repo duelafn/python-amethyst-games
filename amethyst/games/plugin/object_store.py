@@ -24,7 +24,8 @@ from amethyst.games.util   import nonce
 
 class ObjectStore(EnginePlugin):
     AMETHYST_PLUGIN_COMPAT  = 1.0
-    AMETHYST_ENGINE_METHODS = "stor_get stor_set stor_get_player stor_set_player stor_get_any".split()
+    AMETHYST_ENGINE_METHODS = "_get _set _get_player _set_player _get_any".split()
+    AMETHYST_ENGINE_DEFAULT_METHOD_PREFIX = "stor_"
 
     storage = Attr(isa=dict, default=dict)
 
@@ -32,27 +33,27 @@ class ObjectStore(EnginePlugin):
         super(ObjectStore,self).__init__(*args, **kwargs)
         self.player_storage = dict()
 
-    def stor_get(self, engine, id):
+    def _get(self, engine, id):
         return self.storage.get(id, None)
 
-    def stor_set(self, engine, obj, id=None):
+    def _set(self, engine, id, obj):
         if id is None:
             id = self.identify(obj)
         self.storage[id] = obj
         return id
 
-    def stor_get_player(self, engine, player, id):
+    def _get_player(self, engine, player, id):
         if player in self.player_storage:
             return self.player_storage[player].get(id, None)
         return None
 
-    def stor_set_player(self, engine, player, obj, id=None):
+    def _set_player(self, engine, player, id, obj):
         if id is None:
             id = self.identify(obj)
         self.player_storage[player][id] = obj
         return id
 
-    def stor_get_any(self, engine, id):
+    def _get_any(self, engine, id):
         if id in self.storage:
             return self.storage[id]
         for stor in self.player_storage.values():
