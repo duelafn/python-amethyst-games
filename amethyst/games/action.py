@@ -115,23 +115,15 @@ class Filter(IFilter):
         raise TypeError("Not Implemented")
 
 class Filterable(Object):
-    _ensure_flags_ = frozenset()
     id = Attr(isa=six.text_type, default=nonce)
     name = Attr(isa=six.text_type)
     flags = Attr(isa=set, default=set)
 
     def __init__(self, *args, **kwargs):
         super(Filterable,self).__init__(*args, **kwargs)
-        if self._ensure_flags_:
-            if self.flags is None:
-                self.flags = set(self._ensure_flags_)
-            else:
-                self.flags.update(self._ensure_flags_)
         self.make_immutable()
 
-
 class Achievement(Filterable):
-    _ensure_flags_ = frozenset(["Achievement"])
 
     @classmethod
     def from_action(cls, action):
@@ -140,9 +132,8 @@ class Achievement(Filterable):
         if action.flags: init['flags'] = set(action.flags)
         return cls(init)
 
-class Action(Filterable):
-    _ensure_flags_ = frozenset(["Action"])
 
+class Action(Filterable):
     kwargs = Attr(isa=dict)
     defaults = Attr(isa=dict)
     data = Attr(isa=dict)
