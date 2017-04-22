@@ -245,8 +245,10 @@ class Engine(Object):
             p_kwargs = copy.deepcopy(kwargs)
             if "censor" in actions:
                 for cb in actions["censor"]:
-                    cb(self, stash, player, p_kwargs)
-            self.notify(player, Notice(name=name, type=Notice.CALL, data=p_kwargs))
+                    if p_kwargs is not None:
+                        p_kwargs = cb(self, stash, player, p_kwargs)
+            if p_kwargs is not None:
+                self.notify(player, Notice(name=name, type=Notice.CALL, data=p_kwargs))
 
         if actions.get('autocommit', False):
             self.commit()
