@@ -59,7 +59,6 @@ class Filter(IFilter):
     id    = Attr()
     name  = Attr()
     flag  = Attr()
-    group = Attr()
     any   = Attr()
     all   = Attr()
 
@@ -76,9 +75,6 @@ class Filter(IFilter):
         if rv[-1] is False: return False
 
         rv.append(self.test_set(self.flag, obj.flags))
-        if rv[-1] is False: return False
-
-        rv.append(self.test_item(self.group, obj.group))
         if rv[-1] is False: return False
 
         if self.any:
@@ -122,8 +118,7 @@ class Filterable(Object):
     _ensure_flags_ = frozenset()
     id = Attr(isa=six.text_type, default=nonce)
     name = Attr(isa=six.text_type)
-    flags = Attr(isa=set)
-    group = Attr(isa=six.text_type)
+    flags = Attr(isa=set, default=set)
 
     def __init__(self, *args, **kwargs):
         super(Filterable,self).__init__(*args, **kwargs)
@@ -143,7 +138,6 @@ class Achievement(Filterable):
         init = dict(id=action.id)
         if action.name: init['name'] = action.name
         if action.flags: init['flags'] = set(action.flags)
-        if action.group: init['group'] = action.group
         return cls(init)
 
 class Action(Filterable):
