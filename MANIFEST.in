@@ -2,4 +2,5 @@ include CONTRIBUTING
 include ChangeLog.txt
 include LICENSE
 include README.adoc
+include example/*
 include tests/*

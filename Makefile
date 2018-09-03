@@ -1,16 +1,4 @@
-# Author: Dean Serenevy <dean@serenevy.net>
-#
-# This program is free software: you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, version 3 of the License.
-#
-# This program is distributed in the hope that it will be useful, but WITHOUT
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-# FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License
-# for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
+# SPDX-License-Identifier: LGPL-3.0
 
 PKGNAME = amethyst-games
 PKG_VERSION = $(shell python -c 'import re; print(re.search("__version__ = \"([\d.]+)\"", open("amethyst/games/__init__.py").read()).group(1))')
@@ -19,27 +7,18 @@ PY_FILES = $(shell find tests amethyst/games -type f -name "*.py")
 .PHONY: all sdist dist debbuild clean test
 
 
-test:
-	python3 setup.py test >/dev/null
-	python2 setup.py test >/dev/null
-
 check:
+	@find amethyst/games example tests setup.py -type f -not -empty -exec perl -nE '($$hit = 1), exit if /SPDX\-License\-Identifier/; END { $$hit or say "$$ARGV: MISSING SPDX-License-Identifier" }' {} \;
 	@echo python3 -m flake8 --config=extra/flake8.ini ...
 	@python3 -m flake8 --config=extra/flake8.ini example/*.py ${PY_FILES}
 	@echo python2 -m flake8 --config=extra/flake8.ini ...
 	@python2 -m flake8 --config=extra/flake8.ini example/*.py ${PY_FILES}
 	@echo OK
 
-zip: test
-	python3 setup.py sdist --format=zip
-
-sdist: test
-	python3 setup.py sdist
-
-dist: test debbuild
-	@mkdir -p dist/${PKG_VERSION}
-	mv -f debbuild/${PKGNAME}_* debbuild/*.deb dist/${PKG_VERSION}/
-	rm -rf debbuild
+clean:
+	rm -rf build dist debbuild .venv2 .venv3 amethyst_games.egg-info
+	rm -f MANIFEST
+	pyclean .
 
 debbuild: test sdist
 	@head -n1 debian/changelog | grep "(${PKG_VERSION}-1)" debian/changelog || (/bin/echo -e "\e[1m\e[91m** debian/changelog requires update **\e[0m" && false)
@@ -50,7 +29,20 @@ debbuild: test sdist
 	cp -r debian debbuild/${PKGNAME}-${PKG_VERSION}/
 	cd debbuild/${PKGNAME}-${PKG_VERSION} && dpkg-buildpackage -rfakeroot -uc -us
 
-clean:
-	rm -rf build dist debbuild .ttttt
-	rm -f MANIFEST
-	pyclean .
+dist: test debbuild
+	@mkdir -p dist/${PKG_VERSION}
+	mv -f debbuild/${PKGNAME}_* debbuild/*.deb dist/${PKG_VERSION}/
+	rm -rf debbuild
+
+doc:
+	epydoc --simple-term --html amethyst -o pydoc  --include-log --inheritance grouped
+
+sdist: test
+	python3 setup.py sdist
+
+test:
+	AMETHEST_TEST_ALL=1 python3 setup.py test >/dev/null
+	AMETHEST_TEST_ALL=1 python2 setup.py test >/dev/null
+
+zip: test
+	python3 setup.py sdist --format=zip

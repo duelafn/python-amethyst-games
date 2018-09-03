@@ -5,7 +5,6 @@ export PYBUILD_NAME=amethyst-games
 %:
 	dh $@ --with python2,python3 --buildsystem=pybuild
 
-override_dh_auto_test:
-	echo "__import__('pkg_resources').declare_namespace(__name__)" | tee amethyst/__init__.py
-	dh $@ --with python2,python3 --buildsystem=pybuild
-	rm -f amethyst/__init__.py
+## Sample package: python-backports.functools-lru-cache
+override_dh_python2:
+	dh_python2 --namespace amethyst
