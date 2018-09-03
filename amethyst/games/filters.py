@@ -2,19 +2,7 @@
 """
 
 """
-# Copyright (C) 2017  Dean Serenevy
-#
-# This program is free software: you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License as published
-# by the Free Software Foundation, version 3 of the License.
-#
-# This program is distributed in the hope that it will be useful, but WITHOUT
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
-# more details.
-#
-# You should have received a copy of the GNU Lesser General Public
-# License along with this program. If not, see <http://www.gnu.org/licenses/>.
+# SPDX-License-Identifier: LGPL-3.0
 from __future__ import division, absolute_import, print_function, unicode_literals
 
 __all__ = """
@@ -24,8 +12,6 @@ IFilter
    ClsFilterAll FILTER_ALL
 
 Filterable
-   Achievement
-   Action
 
 """.split()
 
@@ -122,29 +108,3 @@ class Filterable(Object):
     def __init__(self, *args, **kwargs):
         super(Filterable,self).__init__(*args, **kwargs)
         self.make_immutable()
-
-class Achievement(Filterable):
-
-    @classmethod
-    def from_action(cls, action):
-        init = dict(id=action.id)
-        if action.name: init['name'] = action.name
-        if action.flags: init['flags'] = set(action.flags)
-        return cls(init)
-
-
-class Action(Filterable):
-    kwargs = Attr(isa=dict)
-    defaults = Attr(isa=dict)
-    data = Attr(isa=dict)
-    repeatable = Attr(bool)
-#     mandatory = Attr(bool)
-#     immediate = Attr(bool)
-#
-#     before = Attr(tupley)
-#     after = Attr(tupley)
-#     dt_expires = Attr(int)
-    expires = Attr(tupley)
-#     consumes = Attr(tupley)
-#     requires = Attr(tupley)
-#     conflicts = Attr(tupley)

@@ -1,3 +1,9 @@
+amethyst-games (0.5.2-1) unstable; urgency=low
+
+  * New upstream release
+
+ -- Dean Serenevy <dean@serenevy.net>  Mon, 03 Sep 2018 13:45:17 -0400
+
 amethyst-games (0.5.1-1) unstable; urgency=low
 
   * New release

@@ -2,111 +2,22 @@
 """
 
 """
-# Copyright (C) 2017  Dean Serenevy
-#
-# This program is free software: you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License as published
-# by the Free Software Foundation, version 3 of the License.
-#
-# This program is distributed in the hope that it will be useful, but WITHOUT
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
-# more details.
-#
-# You should have received a copy of the GNU Lesser General Public
-# License along with this program. If not, see <http://www.gnu.org/licenses/>.
+# SPDX-License-Identifier: LGPL-3.0
+from __future__ import division, absolute_import, print_function, unicode_literals
+__all__ = 'Engine'.split()
 
-__all__ = '''
-Engine EnginePlugin
-
-AmethystGameException
-  NotificationSequenceException
-  PluginCompatibilityException
-  UnknownActionException
-
-ADMIN NOBODY
-'''.split()
-
+import collections
 import copy
 import json
 import six
 
-from amethyst.core import Object, Attr
+from amethyst.core import Object, Attr, cached_property
 
-from .action import Action, Filterable, ClsFilterAll, FILTER_ALL
-from .notice import Notice
-from .util   import tupley
+from .notice import Notice, NoticeType
+from .util import UnknownActionException, PluginCompatibilityException, NotificationSequenceException
+from .util import tupley
 
-ADMIN = {}
-NOBODY = None
-
-class AmethystGameException(Exception): pass
-class PluginCompatibilityException(AmethystGameException): pass
-class UnknownActionException(AmethystGameException): pass
-class NotificationSequenceException(AmethystGameException): pass
-
-class EnginePlugin(Object):
-    """EnginePlugin
-
-    @cvar AMETHYST_ENGINE_DEPENDS: Iterable collection of plugin class
-        names (as strings) which this plugin delends on. An exception will
-        be thrown if any dependencies are not available when the plugin is
-        registered.
-    @type AMETHYST_ENGINE_DEPENDS: Any iterable of str
-
-    @cvar AMETHYST_ENGINE_METHODS: Iterable collection of methods to be
-        added to the engine object which will be handled by this plugin. It
-        is an error for multiple plugins to define the same method, so be
-        considerate and try to prefix your method names to avoid
-        collisions.
-    @type AMETHYST_ENGINE_METHODS: Any iterable of str
-
-    @cvar AMETHYST_PLUGIN_COMPAT: Plugin version number as a float or int.
-        Plugin version compatibility between instances is ensured via the
-        integer portion of this value. (See `compat`)
-    @type AMETHYST_PLUGIN_COMPAT: float or int
-
-    @ivar compat: Version number of instance. When plugin data is
-        deserialized, this value is compared against the class variable
-        `AMETHYST_PLUGIN_COMPAT`. If they do not have the same integer
-        value, an exception will be thrown.
-    """
-    AMETHYST_ENGINE_DEPENDS = ()
-    AMETHYST_ENGINE_METHODS = ()
-    AMETHYST_ENGINE_DEFAULT_METHOD_PREFIX = ""
-    AMETHYST_ENGINE_DEFAULT_METHOD_SUFFIX = ""
-    # Compatibility: class attr hard-coded, instance attr used when passing
-    # constructed objects over the wire. Allows server to verify that the
-    # server plugin version is compatible with the client plugin version.
-    AMETHYST_PLUGIN_COMPAT  = None
-    compat = Attr(isa=float)
-
-    def __init__(self, *args, **kwargs):
-        self.amethyst_method_prefix = kwargs.pop("amethyst_method_prefix", self.AMETHYST_ENGINE_DEFAULT_METHOD_PREFIX)
-        self.amethyst_method_suffix = kwargs.pop("amethyst_method_suffix", self.AMETHYST_ENGINE_DEFAULT_METHOD_SUFFIX)
-        super(EnginePlugin,self).__init__(*args, **kwargs)
-        if self.compat is None:
-            self.compat = self.AMETHYST_PLUGIN_COMPAT
-        if self.AMETHYST_PLUGIN_COMPAT is None:
-            raise PluginCompatibilityException("Plugin {} does not define an api version".format(self.__class__.__name__))
-        if int(self.compat) != int(self.AMETHYST_PLUGIN_COMPAT):
-            raise PluginCompatibilityException("Plugin {} imported incompatible serialized data: Loaded {} data, this is version {}".format(self.__class__.__name__, self.compat, self.AMETHYST_PLUGIN_COMPAT))
-
-    def initialize(self, *args):
-        if len(args) > 0:
-            if args[0] is None: return
-            self.load_data(args[0], verifyclass=False)
-        else:
-            return dict()
-
-    def get_state(self, player):
-        return copy.deepcopy(self.dict)
-
-    def set_state(self, state):
-        self.set(**state)
-
-
-
+NoticeType.register(CALL=":call")
 
 ENGINE_CALL_ORDER = "before action after".split()
 ENGINE_CALL_TYPES = ENGINE_CALL_ORDER + "censor check undo".split()
@@ -114,17 +25,14 @@ ENGINE_CALL_TYPES = ENGINE_CALL_ORDER + "censor check undo".split()
 class Engine(Object):
     """Engine
 
-    @ivar plugins: list of plugin `Object`s.
+    :ivar plugins: list of plugin `Object`s.
 
-    @ivar players: list of players. String or integer identifiers.
+    :ivar players: list of players. String or integer identifiers.
 
-    @ivar grants: Currently active grants. dict: PLAYER_ID => list(GRANTS)
-
-    @ivar undoable: Number of undoable actions.
+    :ivar undoable: Number of undoable actions.
     """
-    plugins  = Attr(builder=set)
     players  = Attr(isa=list, default=list)
-    grants   = Attr(isa=dict, default=dict)
+    plugins  = Attr(isa=list, default=list)
     undoable = Attr(isa=int,  default=0)
     # Private attributes:
     #   _client_mode:  bool: True when running in client mode
@@ -133,22 +41,25 @@ class Engine(Object):
     #   actions:       dict: NAME => CALLBACK
     #   journal:       list: tuple(action, kwargs)
     #   notified:      dict: PLAYER => [ [ COUNTER, CALLBACK ], ... ]
+    #   player          str: if non Null, may be used as default player id in some methods
     #   plugin_names:   set: cached list of plugin names as strings (for dependency checking)
-    #   plugin_pkgs:   list: plugin search path (packages containing plugins)
 
     def __init__(self, *args, **kwargs):
-        self._client_mode = kwargs.pop("client", False)
+        client = kwargs.pop("client", False)
+        super(Engine,self).__init__(*args, **kwargs)
+
+        self._client_mode = client
         self._client_seq = 0
+        self._event_dispatch = { NoticeType.CALL: [ self.call_event_listener ] }
         self._initialization_data = None
         self.actions = dict()
         self.journal = [ ]
         self.notified = dict()
+        self.player = kwargs.pop("player", None)
         self.plugin_names = set()
-        self.plugin_pkgs = [ ]
 
-        super(Engine,self).__init__(*args, **kwargs)
         for plugin in self.plugins:
-            self.register(plugin)
+            self.register_plugin(plugin)
 
 
     def is_client(self):
@@ -180,7 +91,7 @@ class Engine(Object):
         each registered plugin in registration order. If any return False,
         the action is aborted and False is returned.
 
-        @note: Technically, the immutability flag is only advisory, but
+        .. note:: Technically, the immutability flag is only advisory, but
         since there is no unrolling mechanism for partially completed
         _check_, it is a bad idea for plugins to attempt to bypass immutability.
 
@@ -209,10 +120,10 @@ class Engine(Object):
             def _action_censor_(self, engine, stash, player, kwargs):
 
 
-        @todo 1.0: Automatic roll-back if an exception is raised in any of
-        the action handlers.
+        .. todo:: 1.0: Automatic roll-back if an exception is raised in any
+        of the action handlers.
 
-        @raise UnknownActionException: If action does not exist.
+        :raises UnknownActionException: If action does not exist.
 
         """
         if kwargs is None:
@@ -232,7 +143,7 @@ class Engine(Object):
                 self.make_mutable()
 
         # Save game state for UNDO and roll-back
-        self.journal.append( (name, kwargs, stash, { k: copy.copy(v) for k, v in six.iteritems(self.grants) }) )
+        self.journal.append( (name, kwargs, stash) )
 
         # Execute the action, all the fun happens here
         for stage in ENGINE_CALL_ORDER:
@@ -240,7 +151,7 @@ class Engine(Object):
                 for cb in actions[stage]:
                     cb(self, stash, **kwargs)
 
-        # If anyone wants to be notified of events, send them censor-ed information.
+        # If anyone wants to be notified, send them censor-ed information.
         for player in self.notified:
             p_kwargs = copy.deepcopy(kwargs)
             if "censor" in actions:
@@ -248,51 +159,11 @@ class Engine(Object):
                     if p_kwargs is not None:
                         p_kwargs = cb(self, stash, player, p_kwargs)
             if p_kwargs is not None:
-                self.notify(player, Notice(name=name, type=Notice.CALL, data=p_kwargs))
+                self.notify(player, Notice(name=name, type=NoticeType.CALL, data=p_kwargs))
 
         if actions.get('autocommit', False):
             self.commit()
         return True
-
-    def trigger(self, player, id, kwargs):
-        """
-        Player interface to actions
-
-        call() may be the mover and shaker of the engine, but it lives in a
-        gated community, and trigger() holds the keys.
-
-        Actions perform operations on the game state, but actions should
-        never be called directly by players. Instead, a player receives
-        grants for each action is has been granted permission to trigger.
-        When the player wants to perform one of those actions, it triggers
-        the action by the grant id, passing along any arguments that the
-        action requires.
-
-        Triggered actions will be processed and the action will either
-        succeed or fail, causing the grant to be consumed or not (though a
-        grant may also be flagged as repeatable in which case it will not
-        be consumed even if successful).
-        """
-
-        a = self.find_grant(player, id)
-        if not a: return False
-
-        # Actions can default or force certain kwargs:
-        if a.kwargs or a.defaults:
-            kwargs = copy.copy(kwargs)
-        if a.kwargs:
-            kwargs.update(a.kwargs)
-        if a.defaults:
-            for k, v in six.iteritems(a.defaults):
-                kwargs.setdefault(k, v)
-
-        # Finally call the action
-        ok = self.call(a.name, kwargs)
-
-        if ok:
-            self.expire(a.expires)
-            if not a.repeatable:
-                self.expire(a.id)
 
     def observe(self, player, cb):
         """
@@ -331,6 +202,7 @@ class Engine(Object):
 
     def notify(self, player, notice):
         """Send a notice to one or more players"""
+#         print(id(self), "notify", player, notice)
         for p in tupley(player):
             if p in self.notified:
                 for pair in self.notified[p]:
@@ -341,32 +213,12 @@ class Engine(Object):
         if n < self.undoable:
             self.undoable = n
 
-    def insert_plugin_package(self, *pkgs):
-        """
-        Prepends one or more packages to the list searched for named plugins.
-        """
-        self.plugin_pkgs[:0] = pkgs
-
-    def isa(self, cls, *args, **kwargs):
-        """
-        Register a plugin by name. Searches registered plugin packages and
-        initializes an instance from the passed arguments.
-
-        @todo: is this needed / wanted? Does it work?
-        """
-        if isinstance(cls, six.string_types):
-            for pkg in self.plugin_pkgs:
-                if hasattr(pkg, cls):
-                    cls = getattr(pkg, cls)
-                    break
-        self.register(cls(*args, **kwargs))
-
-    def register(self, plugin):
+    def register_plugin(self, plugin):
         """
         Register a plugin instance. Merges engine methods and plugin actions.
         """
         name = plugin.__class__.__name__
-        self.plugins.add(plugin)
+        self.plugins.append(plugin)
         self.plugin_names.add(name)
 
         for dep in tupley(plugin.AMETHYST_ENGINE_DEPENDS):
@@ -407,26 +259,28 @@ class Engine(Object):
         )
 
 
-    def initialize(self, *args):
-        if len(args) > 0:
-            stuff = args[0]
-            if stuff is None: return
-            plugin_init = stuff.pop("plugin_init", [])
-            self.load_data(stuff, verifyclass=False)
+    def initialize(self, attrs=None):
+        if attrs is not None:
+            plugin_init = attrs.pop("plugin_init", [])
+            self.load_data(attrs, verifyclass=False)
             for idx, p in enumerate(self.plugins):
                 try:
                     init = plugin_init[idx]
                 except IndexError:
                     init = None
-                p.initialize(init)
-        else:
-            self._initialization_data = dict(
-                plugin_init=[ p.initialize() for p in self.plugins ],
-            )
-            return self._initialization_data
+                p.initialize(self, init)
 
-    def get_initialization_data(self):
-        return self._initialization_data
+        else:
+            for p in self.plugins:
+                p.initialize(self)
+
+        return self.initialization_data
+
+    @cached_property
+    def initialization_data(self):
+        data = copy.deepcopy(self.dict)
+        data["plugin_init"] = [ p.initialization_data for p in self.plugins ]
+        return data
 
     def get_state(self, player):
         d = copy.deepcopy(self.dict)
@@ -448,103 +302,34 @@ class Engine(Object):
     def loads(self, data):
         return json.loads(data, object_hook=self.JSONObjectHook)
 
-    def _grant(self, players, actions):
-        for p in tupley(players):
-            self.notify( p, Notice(type=Notice.GRANT, data=dict(players=p, actions=actions)) )
-            if p not in self.grants:
-                self.grants[p] = dict()
-            for a in tupley(actions):
-                self.grants[p][a.id] = a
+    def call_event_listener(self, game, seq, player, notice):
+        self.call(notice.name, notice.data)
 
-    def grant(self, players, actions):
-        if not self._client_mode:
-            self._grant(players, actions)
-        return self
+    def register_event_listener(self, type, listener):
+        if type not in self._event_dispatch:
+            self._event_dispatch[type] = []
+        self._event_dispatch[type].append(listener)
+#         print(id(self), "register listener", self._event_dispatch.keys())
 
-    def server_grant_notice(self, notice):
-        """Process a grant Notice from the server."""
-        # Processes the grant even in client mode.
-        if notice.type != Notice.GRANT:
-            raise TypeError("Expected a 'grant' notice")
-        self._grant(notice.data.get('players'), notice.data.get('actions'))
-        return self
-
-    def client_event_listener(self, game, seq, player, notice):
+    def dispatch_event(self, game, seq, player, notice):
         """
         Responds to standard engine-related notifications. Client engines
         should attach this method via `.observe()` in order to keep the
         local engine up to date.
 
-          GRANT: Adds grants to grant list
-
-          EXPIRE: Expires grants from grant list
-
-          CALL: Calls cooresponding action
-
-        @raise NotificationSequenceException: If receive a non-consecutive
+        :raises NotificationSequenceException: If receive a non-consecutive
         sequence number. In this case, client should re-syncronize via
         get_state/set_state.
         """
-        if seq != self._client_seq + 1:
-            raise NotificationSequenceException("got {} expected {}".format(seq, self._client_seq))
         self._client_seq += 1
+        if seq != self._client_seq:
+            raise NotificationSequenceException("got {} expected {}".format(seq, self._client_seq))
 
-        if notice.type == Notice.GRANT:
-            self.server_grant_notice(notice)
-        elif notice.type == Notice.EXPIRE:
-            self.server_expire_notice(notice)
-        elif notice.type == Notice.CALL:
-            self.call(notice.name, notice.data)
+#         print(id(self), "dispatch", self._event_dispatch.keys())
+        if notice.type in self._event_dispatch:
+            for cb in self._event_dispatch[notice.type]:
+                cb(game, seq, player, notice)
 
-    def _expire(self, filters=FILTER_ALL):
-        if not filters:
-            return
-        self.notify(self.players, Notice(type=Notice.EXPIRE, data=filters))
-        for filt in tupley(filters):
-            # Optimization for a common case
-            if isinstance(filt, ClsFilterAll):
-                self.grants = dict()
-                return
-            elif isinstance(filt, six.text_type):
-                for g in self.grants.values():
-                    g.pop(filt, None)
-            else:
-                for p in self.grants:
-                    self.grants[p] = [ a for a in self.grants[p] if not filt.accepts(a) ]
-
-    def expire(self, filters=FILTER_ALL):
-        if not self._client_mode:
-            self._expire(filters)
-        return self
-
-    def server_expire_notice(self, notice):
-        """Process an expire Notice from the server."""
-        # Processes the grant even in client mode.
-        if notice.type != Notice.EXPIRE:
-            raise TypeError("Expected an 'expire' notice")
-        self._expire(notice.data)
-        return self
-
-
-    def find_grant(self, player, id):
-        """
-        Find a player grant by id and returns it, else returns `None`.
-        """
-        if player in self.grants:
-            if id in self.grants[player]:
-                a = self.grants[player][id]
-                if isinstance(a, Action):
-                    return a
-        return None
-
-    def list_grants(self, player, filt=FILTER_ALL):
-        """
-        Return a tuple of player grants matching the requested filter (default all grants).
-        """
-        if player not in self.grants:
-            return ()
-
-        if isinstance(filt, ClsFilterAll):
-            return tuple(self.grants[player].values())
-        else:
-            return tuple(a for a in self.grants[player].values() if filt.accepts(a))
+        if None in self._event_dispatch:
+            for cb in self._event_dispatch[None]:
+                cb(game, seq, player, notice)

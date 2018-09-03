@@ -1,29 +1,19 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# Copyright (C) 2017  Dean Serenevy
-#
-# This program is free software: you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License as published
-# by the Free Software Foundation, version 3 of the License.
-#
-# This program is distributed in the hope that it will be useful, but WITHOUT
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
-# more details.
-#
-# You should have received a copy of the GNU Lesser General Public
-# License along with this program. If not, see <http://www.gnu.org/licenses/>.
+# SPDX-License-Identifier: LGPL-3.0
 from __future__ import division, absolute_import, print_function, unicode_literals
 
-import copy
+import os.path
 import random
-import six
+import sys
 
 from six.moves import input
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
 from amethyst.core  import Object, Attr
-from amethyst.games import Engine, EnginePlugin, Action, Filter
-from amethyst.games.plugin import Turns
+from amethyst.games import Engine, EnginePlugin, Filter
+from amethyst.games.plugins import Grants, Turns, Action
 
 # Argument parsing
 import argparse
@@ -55,14 +45,18 @@ class TTT_Engine(Engine):
         if self.board is None:
             self.board = [ [None] * self.width for i in range(self.height) ]
 
-        # Most turn-based games will want the Turns plugin
-        self.register(Turns())
+        # Most turn-based games will want the Grants and Turns plugin
+        self.register_plugin(Grants())
+        self.register_plugin(Turns())
 
         # All games need some plugins to implemnt behavior. Some games will
         # always consist of the same plugins, some may load different sets
         # of plugins depending on what game expansions are being played.
+        # Some may load a base set of plugins in their constructor and
+        # allow the caller to load additional plugins.
+        #
         # TicTacToe needs only a single plugin.
-        self.register(TicTacToe())
+        self.register_plugin(TicTacToe())
 
     def spaces_available(self):
         """
@@ -86,7 +80,22 @@ class TTT_Engine(Engine):
 # easier.
 
 class TicTacToe(EnginePlugin):
+    """
+    Simple TicTacToe "Plugin"
+
+    Actions:
+
+      - begin:    start a new game
+
+      - place:    (current player) place a mark on the board
+
+      - end_turn: (current player) end theirt turn after placing, split as a separate action for illustration
+
+    TODO: End of game detection!
+
+    """
     AMETHYST_PLUGIN_COMPAT = 1  # Plugin API version
+    AMETHYST_ENGINE_METHODS = ('is_valid_placement')
 
     def next_turn(self, game):
         """
@@ -98,6 +107,9 @@ class TicTacToe(EnginePlugin):
         game.turn_start()
         game.grant(game.turn_player(), Action(name="place"))
 
+    def is_valid_placement(self, game, x, y):
+        return game.board[y][x] is None
+
     def _begin_action_(self, game, stash):
         """
         Begin: No setup, just move to first turn.
@@ -108,7 +120,7 @@ class TicTacToe(EnginePlugin):
         """
         Place check: Verify spot is empty
         """
-        return game.board[y][x] is None
+        return self.is_valid_placement(game, x, y)
 
     def _place_action_(self, game, stash, x, y):
         """
@@ -129,59 +141,14 @@ class TicTacToe(EnginePlugin):
         self.next_turn(game)
 
 
-# Tele-Type Tic-Tac-Toe :)
-#
-# User Interface
-#
 # Any interface can keep its own engine instance to query game state (as
-# known to the player). In this case, we implement the interface
-# independent even of the server communication method allowing the same UI
-# to be used with a in-process or over-network server (a network would just
-# require a layer to relay notices and commands back and forth between
-# server and UI).
+# known to the player). Here, we implement the simplest interface possible,
+# a client game engine, a place to store the player id, and a couple useful
+# methods.
 
-class TTTTT(Object):
+class TTTInterface(Object):
     engine = Attr(default=lambda: TTT_Engine(client=True))
     player = Attr(int)
-
-    def prompt(self):
-        """
-        Prompt user for input, show board first
-        """
-        self.print_board()
-        return input("Player {}: ".format(self.player))
-
-    def handle(self):
-        """
-        Currently the player's turn, prompt for a command and return the
-        corresponding grant.
-        """
-        cmd = self.prompt().split()
-        kwargs = dict()
-
-        filt = None
-        if cmd[0] == '?':# ? - help / list available grants
-            print("x y     to place at position x, y")
-            print("e       to end turn")
-            print("Current grant(s):")
-            for x in self.engine.list_grants(self.player):
-                print(x)
-
-        elif cmd[0] == 'e':# e - end turn
-            filt = Filter(name="end_turn")
-
-        else:# x y - place marker at x, y
-            filt = Filter(name="place")
-            kwargs['x'] = int(cmd[0])
-            kwargs['y'] = int(cmd[1])
-
-        # Search for grants matching the action filter selected. If we find
-        # one, call it. Otherwise noop.
-        grants = self.engine.list_grants(self.player, filt) if filt else None
-        if grants:
-            return [ grants[0].id, kwargs ]
-        else:
-            return None
 
     def print_board(self):
         """
@@ -197,9 +164,62 @@ class TTTTT(Object):
         print("Hey, player {}: {}".format(player, str(notice)))
 
 
-# A simple AI
+class TTTTT(TTTInterface):
+    """
+    Tele-Type Tic-Tac-Toe :)
 
-class DumbAI(TTTTT):
+    Human Terminal Interface
+    """
+    def handle(self):
+        """
+        Currently the player's turn, prompt for a command and return the
+        requested action.
+        """
+        # Ask player what they want to do
+        print("")
+        self.print_board()
+        cmd = input("Player {}: ".format(self.player)).split()
+
+        # Command parsing, build a filter that select the correct action
+        # and set the arguments to pass to that action.
+        kwargs = dict()
+        filt = None
+        if cmd[0] == '?':# ? - help / list available grants
+            print("x y     to place at position x, y")
+            print("e       to end turn")
+            print("Current grant(s):")
+            for x in self.engine.list_grants(self.player):
+                print(x)
+
+        elif cmd[0] == 'e':# e - end turn
+            filt = Filter(name="end_turn")
+
+        else:# x y - place marker at x, y
+            filt = Filter(name="place")
+            try:
+                kwargs['x'] = int(cmd[0])
+                kwargs['y'] = int(cmd[1])
+                # This is an optional check performed just to make UI
+                # nicer. The server does its own validation.
+                if not self.engine.is_valid_placement(**kwarge):
+                    print("Invalid placement (already occupied)")
+                    return None
+            except ValueError as err:
+                print("Could not parse coordinate")
+                return None
+
+        # Our wrapper will interpret a None result as a noop (see below),
+        # so to keep this method simple, we just return None if the user
+        # asked for help or had a parse error (the wrapper will re-dispatch
+        # to us until we give a valid action).
+        grants = self.engine.list_grants(self.player, filt) if filt else None
+        if grants:
+            return [ grants[0].id, kwargs ]
+        else:
+            return None
+
+
+class DumbAI(TTTInterface):
     """
     Dumb AI, places mark on random unoccupied position.
     """
@@ -208,25 +228,30 @@ class DumbAI(TTTTT):
         Choose an action from available grants and do it.
         """
         grants = self.engine.list_grants(self.player)
+        print(grants)
+        if not grants:
+            exit()
 
         # This game is simple enough that there is only a single active
-        # grant at a time, thus choosing which grant is easy:
+        # grant at a time, thus choosing an action is easy:
         if grants:
-           if grants[0].name == 'end_turn':
-               return grants[0].id, dict()
+            if grants[0].name == 'end_turn':
+                return grants[0].id, dict()
 
-           if grants[0].name == 'place':
-               # Choosing a placement involves a real choice, be Dumb:
-               x, y = random.choice(self.engine.spaces_available())
-               return grants[0].id, dict(x=x, y=y)
+            if grants[0].name == 'place':
+                # Choosing a placement involves a real choice, be Dumb:
+                x, y = random.choice(self.engine.spaces_available())
+                return grants[0].id, dict(x=x, y=y)
 
 
-# Main app - minimal local-only game
-
+# Main app 1 - minimal local-only game
+#
 def MAIN1(argv):
     """
-    Minimal working example. Exposes full game details to all players and
-    only useful for non network-based games.
+    Minimal working example - All players using the same game engine.
+
+    Exposes full game details to all players and only useful for non
+    network-based games.
     """
     # Build game and players
     game = TTT_Engine(dict( width=argv.size, height=argv.size, players=[ 0, 1 ] ))
@@ -248,18 +273,20 @@ def MAIN1(argv):
 
 
 
-# Main app - client/server example
-
+# Main app 2 - client/server example
+#
 def MAIN2(argv):
     """
-    Simulation of client / server mode. Each player is independent and
-    could just as well be running of different machines. Each to/from json
-    round-trip indicates where a network transition would take place. See
-    amethyst.games.transport for a usable network transport implementation.
+    Simulation of client / server mode.
+
+    Each player is independent and could just as well be running of
+    different machines. Each to/from json round-trip indicates where a
+    network transition would take place. See amethyst.games.transport for a
+    usable network transport implementation.
     """
     # Build game and players. Players do not get a copy of the server, they
     # each maintain their own engine which will track the state of the
-    # server independently.
+    # game independently.
     server = TTT_Engine(dict( width=argv.size, height=argv.size ))
     players = [
         DumbAI(player=0),
@@ -272,17 +299,22 @@ def MAIN2(argv):
 
     for p in players:
         # Each client requests a standard initialization and personalized
-        # state from the server.
-        init = server.dumps(server.get_initialization_data())
+        # state from the server (allowing for per-player secrets).
+        init = server.dumps(server.initialization_data)
         player_state = server.dumps(server.get_state(p.player))
+        print("INIT:", init)
+        print("Player State:", player_state)
 
         # Initialize player's private engine
         p.engine.initialize(p.engine.loads(init))
         p.engine.set_state(p.engine.loads(player_state))
 
-        # Register to receive event notifications
-        server.observe(p.player, p.engine.client_event_listener)
-        server.observe(p.player, p.on_event)
+        # Register to receive event notifications. For a newtwork game, you
+        # would need a custom observer which sends the message over the
+        # network, here we attach the player dispatcher straight to the
+        # server notification stream.
+        server.observe(p.player, p.engine.dispatch_event) # Game state observer
+        server.observe(p.player, p.on_event)              # Auxiliary observer (prints to terminal)
 
     # Start the game!
     server.call("begin")
@@ -290,12 +322,12 @@ def MAIN2(argv):
     while True:
         # Request an action from the current player
         player = players[ server.turn_player() ]
-        request = player.engine.dumps(player.handle())
+        request = player.handle()
 
-        # If an action was requested, ask the server to execute it (if
-        # request succeeds, the server will send notices to clients).
+        # Pass the request to the server to execute it (if the request
+        # succeeds, the server will send notices to clients).
         if request:
-            id, kwargs = server.loads(request)
+            id, kwargs = server.loads(player.engine.dumps(request))
             server.trigger(player.player, id, kwargs)
 
 

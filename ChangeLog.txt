@@ -1,3 +1,7 @@
+amethyst-games
+
+  * Class restructure (more plugins to reduce size of Engine)
+
 amethyst-games 0.5.1
 
   * documentation
