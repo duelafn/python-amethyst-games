@@ -201,7 +201,7 @@ class TTTTT(TTTInterface):
                 kwargs['y'] = int(cmd[1])
                 # This is an optional check performed just to make UI
                 # nicer. The server does its own validation.
-                if not self.engine.is_valid_placement(**kwarge):
+                if not self.engine.is_valid_placement(**kwargs):
                     print("Invalid placement (already occupied)")
                     return None
             except ValueError as err:
@@ -332,4 +332,4 @@ def MAIN2(argv):
 
 
 if __name__ == '__main__':
-    MAIN2(getopts())
+    MAIN1(getopts())
