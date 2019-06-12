@@ -105,6 +105,7 @@ class TicTacToe(EnginePlugin):
         """
         game.commit()
         game.turn_start()
+        print("Grant placement!")
         game.grant(game.turn_player(), Action(name="place"))
 
     def is_valid_placement(self, game, x, y):
@@ -114,6 +115,7 @@ class TicTacToe(EnginePlugin):
         """
         Begin: No setup, just move to first turn.
         """
+        print("Beginning...")
         self.next_turn(game)
 
     def _place_check_(self, game, stash, x, y):
@@ -329,7 +331,8 @@ def MAIN2(argv):
         if request:
             id, kwargs = server.loads(player.engine.dumps(request))
             server.trigger(player.player, id, kwargs)
+            exit()
 
 
 if __name__ == '__main__':
-    MAIN1(getopts())
+    MAIN2(getopts())

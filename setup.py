@@ -4,6 +4,7 @@ Game Engine Toolkit
 """
 # SPDX-License-Identifier: LGPL-3.0
 
+import io
 import os
 import re
 import setuptools
@@ -16,6 +17,9 @@ def my_test_suite():
     if os.environ.get('AMETHEST_TEST_ALL', False):
         suite.addTests(unittest.TestLoader().discover('example', pattern='test_*.py'))
     return suite
+
+with io.open('README.rst', encoding='UTF-8') as fh:
+    readme = fh.read()
 
 setuptools.setup(
     name         = 'amethyst-games',
@@ -37,6 +41,7 @@ setuptools.setup(
     author       = "Dean Serenevy",
     author_email = 'dean@serenevy.net',
     description  = "Game Engine Toolkit",
+    long_description = readme,
     packages     = setuptools.find_packages(exclude=("example",)),
     requires     = [ 'amethyst.core', 'six' ],
     install_requires = [ 'setuptools' ],

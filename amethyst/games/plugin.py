@@ -18,6 +18,50 @@ from amethyst.core import Object, Attr, cached_property
 from .util import PluginCompatibilityException
 
 
+class event_listener(object):
+    """
+    Enables automatic registration with the engine event dispatcher.
+
+    When an EnginePlugin method is decorated with thie class, the plugin
+    will automatically register it with the engine so that any events of
+    the requested type which are sent to the engine `.dispatch_event()`
+    method will be sent to the decorated method.
+
+    The notice sequence number is verified by dispatch_event, so plugins
+    need not verify the sequence in their methods.
+
+    Create a listener for a specific call type (recommended):
+
+        @event_listener(NoticeType.CALL)
+        def foo(self, game, seq, player, notice):
+            ...
+
+    Listen to all notices:
+
+        @event_listener
+        def foo(self, game, seq, player, notice):
+            ...
+    """
+    def __init__(self, what):
+        self.obj = self.cb = self.type = None
+        self.seq = 0
+        if callable(what):
+            self.cb = what
+        else:
+            self.type = what
+
+    def __get__(self, obj, objtype):
+        self.obj = obj
+
+    def __call__(self, *args):
+        if self.cb:
+            return self.cb(self.obj, *args)
+
+        self.cb = args[0]
+        return self
+
+
+
 class EnginePlugin(Object):
     """EnginePlugin
 
@@ -65,15 +109,28 @@ class EnginePlugin(Object):
         if int(self.compat) != int(self.AMETHYST_PLUGIN_COMPAT):
             raise PluginCompatibilityException("Plugin {} imported incompatible serialized data: Loaded {} data, this is version {}".format(self.__class__.__name__, self.compat, self.AMETHYST_PLUGIN_COMPAT))
 
+    def make_mutable(self):
+        self.amethyst_make_mutable()
+    def make_immutable(self):
+        self.amethyst_make_immutable()
+
+    def initialize_early(self, game, attrs=None):
+        pass
+
     def initialize(self, game, attrs=None):
         for name in dir(self):
             attr = getattr(self, name)
-            if hasattr(attr, "event_listener"):
+            if isinstance(attr, event_listener):
+                game.register_event_listener(attr.type, attr)
+#             if hasattr(attr, "event_listener"):
+#                 game.register_event_listener(attr.event_listener, attr)
 #                 print(attr.event_listener, "->", name)
-                game.register_event_listener(attr.event_listener, attr)
 
         if attrs is not None:
             self.load_data(attrs, verifyclass=False)
+
+    def initialize_late(self, game, attrs=None):
+        pass
 
     @cached_property
     def initialization_data(self):
@@ -87,48 +144,8 @@ class EnginePlugin(Object):
 
 
 
-def event_listener(typ):
+def event_listener1(typ):
     def decorate(meth):
         meth.event_listener = typ
         return meth
     return decorate
-
-
-class event_listener2(object):
-    """
-    Enables automatic registration with the engine event dispatcher.
-
-    When an EnginePlugin method is decorated with thie class, the plugin
-    will automatically register it with the engine so that any events of
-    the requested type which are sent to the engine `.dispatch_event()`
-    method will be sent to the decorated method.
-
-    The notice sequence number is verified by dispatch_event, so plugins
-    need not verify the sequence in their methods.
-
-    Create a listener for a specific call type (recommended):
-
-        @event_listener(NoticeType.CALL)
-        def foo(self, game, seq, player, notice):
-            ...
-
-    Listen to all notices:
-
-        @event_listener
-        def foo(self, game, seq, player, notice):
-            ...
-    """
-    def __init__(self, what):
-        self.cb = self.type = None
-        self.seq = 0
-        if callable(what):
-            self.cb = what
-        else:
-            self.type = what
-
-    def __call__(self, *args):
-        if self.cb:
-            return self.cb(*args)
-
-        self.cb = args[0]
-        return self

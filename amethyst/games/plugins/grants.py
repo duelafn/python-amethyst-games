@@ -71,7 +71,7 @@ class Grants(EnginePlugin):
 
         Actions perform operations on the game state, but actions should
         never be called directly by players. Instead, a player receives
-        grants for each action is has been granted permission to trigger.
+        grants for each action it has been granted permission to trigger.
         When the player wants to perform one of those actions, it triggers
         the action by the grant id, passing along any arguments that the
         action requires.
@@ -95,7 +95,7 @@ class Grants(EnginePlugin):
                 kwargs.setdefault(k, v)
 
         # Finally call the action
-        ok = game.call(a.name, kwargs)
+        ok = game.schedule(a.name, kwargs)
 
         if ok:
             self.expire(game, a.expires)
@@ -112,15 +112,16 @@ class Grants(EnginePlugin):
                 self.grants[p][a.id] = a
 
     def grant(self, game, players, actions):
-#         if game.is_server():
+        if game.is_server():
 #             print(id(game), "SERVER: grant", str(actions))
-        self._grant(game, players, actions)
+            self._grant(game, players, actions)
         return self
 
     @event_listener(NoticeType.GRANT)
     def server_grant_notice(self, game, seq, player, notice):
         """Process a grant Notice from the server."""
 #         print(id(game), "CLIENT: grant notice", str(notice))
+        print((self.__class__.__name__, game.__class__.__name__, seq.__class__.__name__, player.__class__.__name__))
         if game.is_client():
             self._grant(game, notice.data.get('players'), notice.data.get('actions'))
 

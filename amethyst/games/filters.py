@@ -51,6 +51,8 @@ class Filter(IFilter):
     def __init__(self, *args, **kwargs):
         super(Filter,self).__init__(*args, **kwargs)
         self.make_immutable()
+    def make_immutable(self):
+        self.amethyst_make_immutable()
 
     def accepts(self, obj):
         rv = []
@@ -108,3 +110,5 @@ class Filterable(Object):
     def __init__(self, *args, **kwargs):
         super(Filterable,self).__init__(*args, **kwargs)
         self.make_immutable()
+    def make_immutable(self):
+        self.amethyst_make_immutable()

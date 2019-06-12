@@ -9,7 +9,10 @@ __all__ = 'Engine'.split()
 import collections
 import copy
 import json
+import random
 import six
+import six.moves.queue as queue
+import threading
 
 from amethyst.core import Object, Attr, cached_property
 
@@ -18,9 +21,10 @@ from .util import UnknownActionException, PluginCompatibilityException, Notifica
 from .util import tupley
 
 NoticeType.register(CALL=":call")
+NoticeType.register(INIT=":init")
 
 ENGINE_CALL_ORDER = "before action after".split()
-ENGINE_CALL_TYPES = ENGINE_CALL_ORDER + "censor check undo".split()
+ENGINE_CALL_TYPES = ENGINE_CALL_ORDER + "check init notify undo".split()
 
 class Engine(Object):
     """Engine
@@ -37,7 +41,7 @@ class Engine(Object):
     # Private attributes:
     #   _client_mode:  bool: True when running in client mode
     #   _client_seq:    int: client event sequence number
-    #   _initialization_data: dict: cached initialization data
+    #   initialization_data: dict: cached initialization data
     #   actions:       dict: NAME => CALLBACK
     #   journal:       list: tuple(action, kwargs)
     #   notified:      dict: PLAYER => [ [ COUNTER, CALLBACK ], ... ]
@@ -51,16 +55,50 @@ class Engine(Object):
         self._client_mode = client
         self._client_seq = 0
         self._event_dispatch = { NoticeType.CALL: [ self.call_event_listener ] }
-        self._initialization_data = None
         self.actions = dict()
         self.journal = [ ]
         self.notified = dict()
         self.player = kwargs.pop("player", None)
         self.plugin_names = set()
 
+        self._queue = queue.Queue()
+
         for plugin in self.plugins:
             self.register_plugin(plugin)
 
+    def process_queue(self, block=False, timeout=0.1):
+        try:
+            while True:
+                typ, args, kwargs = self._queue.get(block, timeout)
+                print((typ, args))
+                if typ == 'call':
+                    self.call_immediate(*args, **kwargs)
+                elif typ == 'notify':
+                    self.notify_immediate(*args, **kwargs)
+                elif typ == 'exit':
+                    return False
+                else:
+                    raise Exception("Bad queue item: {}".format(typ))
+        except queue.Empty:
+            print("queue.Empty")
+            pass
+        return True
+
+    def run(self):
+        while self.process_queue(True, None):
+            pass
+
+    def shutdown(self):
+        self._queue.put(('exit', None, None))
+        return self
+
+    def schedule(self, *args, **kwargs):
+        self._queue.put(('call', args, kwargs))
+        return self
+
+    def notify(self, *args, **kwargs):
+        self._queue.put(('notify', args, kwargs))
+        return self
 
     def is_client(self):
         """True when running in client mode"""
@@ -70,20 +108,19 @@ class Engine(Object):
         """True when running in server mode"""
         return not self._client_mode
 
-
     def make_mutable(self):
         """Marks engine and all plugins mutable"""
-        super(Engine,self).make_mutable()
+        super(Engine,self).amethyst_make_mutable()
         for p in self.plugins:
             p.make_mutable()
 
     def make_immutable(self):
         """Marks engine and all plugins immutable"""
-        super(Engine,self).make_immutable()
+        super(Engine,self).amethyst_make_immutable()
         for p in self.plugins:
             p.make_immutable()
 
-    def call(self, name, kwargs=None):
+    def call_immediate(self, name, kwargs=None):
         """Call an action by name.
 
         Main mover and shaker of the engine. When an action is called, we
@@ -91,19 +128,29 @@ class Engine(Object):
         each registered plugin in registration order. If any return False,
         the action is aborted and False is returned.
 
+        - check    : [immutable] return False to cancel the action
+        - init     : [immutable] changes to the stash will be saved in the journal (generate random numbers here)
+
+        - before
+        - action   : action phase
+        - after
+        - keep     : called after after only if no callbacks raised an exception
+        - undo     : called after after only if any callback raises an exception
+        - notify   :
+
         .. note:: Technically, the immutability flag is only advisory, but
         since there is no unrolling mechanism for partially completed
         _check_, it is a bad idea for plugins to attempt to bypass immutability.
 
-        After the _check_ phase, the immutable flag is unset, a checkpoint is
+        After the _init_ phase, the immutable flag is unset, a checkpoint is
         made and the action is accepted / added to the journal. Then, for
         each of before, action, and after phases the `_{action}_{phase}_`
         method is executed for each registered plugin in registration
         order.
 
-        `_{action}_{phase}_` methods should have a signature:
+        `_{action}_{phase}_` methods should have the signature:
 
-            def _action_phase_(self, engine, stash, **kwargs):
+            def _{action}_{phase}_(self, engine, stash, **kwargs):
 
         * `self`: the engine plugin itself
         * `engine`: this engine object
@@ -111,14 +158,16 @@ class Engine(Object):
         * `kwargs`: any arguments required for the action
 
         After the action executes, a copy of the action arguments will be
-        passed to the `_{action}_censor_` method once for each player. The
-        censor may remove any information in the action arguments which
-        should not be shared with the indicated player. The censor method
+        passed to the `_{action}_notify_` method once for each player.
+        The method may return a new or modified dict which will be sent as
+        a notification to the player. Uses for this are to censor secret
+        information or to include additional game state. The notify method
         has a different signature, it takes a player id and kwargs are
-        passed as a dictionary reference:
+        passed as a dictionary reference, a copy of the original arguments
+        which may be returned modified:
 
-            def _action_censor_(self, engine, stash, player, kwargs):
-
+            def _{action}_notify_(self, engine, stash, player, kwargs):
+                return kwargs  # customized for player
 
         .. todo:: 1.0: Automatic roll-back if an exception is raised in any
         of the action handlers.
@@ -133,17 +182,28 @@ class Engine(Object):
             raise UnknownActionException("No such action '{}'".format(name))
 
         stash = dict()
-        if "check" in actions:
-            try:
-                self.make_immutable()
+        immutable = False
+        try:
+            if "check" in actions:
+                if not immutable:
+                    self.make_immutable()
+                    immutable = True
                 for cb in actions["check"]:
                     if not cb(self, stash, **kwargs):
                         return False
-            finally:
+            if "init" in actions:
+                if not immutable:
+                    self.make_immutable()
+                    immutable = True
+                for cb in actions["init"]:
+                    cb(self, stash, **kwargs)
+        finally:
+            if immutable:
                 self.make_mutable()
 
         # Save game state for UNDO and roll-back
         self.journal.append( (name, kwargs, stash) )
+        self.undoable += 1
 
         # Execute the action, all the fun happens here
         for stage in ENGINE_CALL_ORDER:
@@ -151,11 +211,11 @@ class Engine(Object):
                 for cb in actions[stage]:
                     cb(self, stash, **kwargs)
 
-        # If anyone wants to be notified, send them censor-ed information.
+        # If anyone wants to be notified, send them notification information.
         for player in self.notified:
             p_kwargs = copy.deepcopy(kwargs)
-            if "censor" in actions:
-                for cb in actions["censor"]:
+            if "notify" in actions:
+                for cb in actions["notify"]:
                     if p_kwargs is not None:
                         p_kwargs = cb(self, stash, player, p_kwargs)
             if p_kwargs is not None:
@@ -199,8 +259,7 @@ class Engine(Object):
         if player in self.notified:
             self.notified[player] = [ pair for pair in self.notified[player] if pair[1] is not cb ]
 
-
-    def notify(self, player, notice):
+    def notify_immediate(self, player, notice):
         """Send a notice to one or more players"""
 #         print(id(self), "notify", player, notice)
         for p in tupley(player):
@@ -260,21 +319,37 @@ class Engine(Object):
 
 
     def initialize(self, attrs=None):
+        self.initialize_early(attrs)
+
         if attrs is not None:
             plugin_init = attrs.pop("plugin_init", [])
             self.load_data(attrs, verifyclass=False)
             for idx, p in enumerate(self.plugins):
-                try:
-                    init = plugin_init[idx]
-                except IndexError:
-                    init = None
-                p.initialize(self, init)
+                p.initialize_early(self, plugin_init[idx] if idx < len(plugin_init) else None)
+            for idx, p in enumerate(self.plugins):
+                p.initialize(self, plugin_init[idx] if idx < len(plugin_init) else None)
+            for idx, p in reversed(list(enumerate(self.plugins))):
+                p.initialize_late(self, plugin_init[idx] if idx < len(plugin_init) else None)
 
         else:
             for p in self.plugins:
+                p.initialize_early(self)
+            for p in self.plugins:
                 p.initialize(self)
+            for p in reversed(self.plugins):
+                p.initialize_late(self)
 
+        self.initialize_late(attrs)
+
+        # (re-)build initial state
+        del self.initialization_data
         return self.initialization_data
+
+    def initialize_early(self, attrs=None):
+        pass
+
+    def initialize_late(self, attrs=None):
+        pass
 
     @cached_property
     def initialization_data(self):
@@ -296,6 +371,15 @@ class Engine(Object):
             except IndexError:
                 pass
 
+    def set_random_player(self, player, num_players):
+        if len(self.players) > num_players:
+            raise Exception("Player list exceeds max players ({})".format(num_players))
+        if len(self.players) < num_players:
+            self.players.extend([None]*(num_players-len(self.players)))
+        idx = random.choice(tuple(i for i in range(num_players) if self.players[i] is None))
+        self.players[idx] = player
+        return idx
+
     def dumps(self, data):
         return json.dumps(data, default=self.JSONEncoder)
 
@@ -303,7 +387,7 @@ class Engine(Object):
         return json.loads(data, object_hook=self.JSONObjectHook)
 
     def call_event_listener(self, game, seq, player, notice):
-        self.call(notice.name, notice.data)
+        self.schedule(notice.name, notice.data)
 
     def register_event_listener(self, type, listener):
         if type not in self._event_dispatch:

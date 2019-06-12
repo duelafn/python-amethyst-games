@@ -41,3 +41,6 @@ class Notice(Object):
     def __init__(self, *args, **kwargs):
         super(Notice,self).__init__(*args, **kwargs)
         self.make_immutable()
+
+    def make_immutable(self):
+        self.amethyst_make_immutable()

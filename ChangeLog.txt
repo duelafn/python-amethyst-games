@@ -1,16 +1,20 @@
-amethyst-games
 
-  * Class restructure (more plugins to reduce size of Engine)
+amethyst-games 0.5.2
+  - INCOMPATIBLE: Class restructure (more plugins to reduce size of Engine)
+  - INCOMPATIBLE: Rename "censor" action stage to "notify" since it can be used more generally
+  - INCOMPATIBLE: push events to a queue for proper ordering
+  - amethyst-core 0.7 compatibility
+  - Split initialization into early, main, and late phases
+  - game can assign random player slot
+  - experimental event_listener decorator
 
 amethyst-games 0.5.1
-
-  * documentation
-  * change exception types
-  * autogenerate Filterable id's
-  * game initialization and basic state management
-  * builtin server/client support
-  * new action syntax "_{action}_{stage}_"
+  - documentation
+  - change exception types
+  - autogenerate Filterable id's
+  - game initialization and basic state management
+  - builtin server/client support
+  - new action syntax "_{action}_{stage}_"
 
 amethyst-games 0.5.0
-
-  * Initial release
+  - Initial release
