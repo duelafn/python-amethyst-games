@@ -41,8 +41,8 @@ sdist: test
 	python3 setup.py sdist
 
 test:
-	AMETHEST_TEST_ALL=1 python3 setup.py test >/dev/null
-	AMETHEST_TEST_ALL=1 python2 setup.py test >/dev/null
+	AMETHEST_TEST_ALL=1 python3 -E -B -m nose --with-coverage --verbosity=0 --cover-package=amethyst.games tests
+	AMETHEST_TEST_ALL=1 python2 -E -B -m nose --with-coverage --verbosity=0 --cover-package=amethyst.games tests
 
 zip: test
 	python3 setup.py sdist --format=zip
