@@ -18,6 +18,7 @@ from amethyst.core import Object, Attr, cached_property
 
 from .notice import Notice, NoticeType
 from .util import UnknownActionException, PluginCompatibilityException, NotificationSequenceException
+from .util import AmethystWriteLocker
 from .util import tupley
 
 NoticeType.register(CALL=":call")
@@ -26,8 +27,9 @@ NoticeType.register(INIT=":init")
 ENGINE_CALL_ORDER = "before action after".split()
 ENGINE_CALL_TYPES = ENGINE_CALL_ORDER + "check init notify undo".split()
 
-class Engine(Object):
-    """Engine
+class Engine(AmethystWriteLocker, Object):
+    """
+    Engine
 
     :ivar plugins: list of plugin `Object`s.
 
@@ -67,8 +69,13 @@ class Engine(Object):
             self.register_plugin(plugin)
 
     def process_queue(self, block=False, timeout=0.1):
+        """
+        Process the run queue until it is empty.
+
+        Returns False if the "exit" command was encountered, else returns True.
+        """
         try:
-            while True:
+            while True: # Breaks on queue.Empty exception
                 typ, args, kwargs = self._queue.get(block, timeout)
                 print((typ, args))
                 if typ == 'call':
@@ -80,21 +87,36 @@ class Engine(Object):
                 else:
                     raise Exception("Bad queue item: {}".format(typ))
         except queue.Empty:
-            print("queue.Empty")
             pass
         return True
 
     def run(self):
+        """
+        Process the run queue forever (or until the "exit" command is encountered).
+        """
         while self.process_queue(True, None):
             pass
 
     def shutdown(self):
+        """Enqueue the "exit" command, shutting down the run method"""
         self._queue.put(('exit', None, None))
         return self
 
-    def schedule(self, *args, **kwargs):
-        self._queue.put(('call', args, kwargs))
-        return self
+    def schedule(self, name, args=None, **kwargs):
+        if args is None:
+            args=dict()
+        actions = self.actions.get(name)
+        if actions is None:
+            raise UnknownActionException("No such action '{}'".format(name))
+
+        if "check" in actions:
+            stash = dict()
+            for cb in actions["check"]:
+                if not cb(self, stash, **args):
+                    return False
+
+        self._queue.put(('call', (name, args), kwargs))
+        return True
 
     def notify(self, *args, **kwargs):
         self._queue.put(('notify', args, kwargs))
@@ -120,7 +142,7 @@ class Engine(Object):
         for p in self.plugins:
             p.make_immutable()
 
-    def call_immediate(self, name, kwargs=None):
+    def call_immediate(self, name, kwargs=None, on_success=None, on_failure=None):
         """Call an action by name.
 
         Main mover and shaker of the engine. When an action is called, we
@@ -175,55 +197,58 @@ class Engine(Object):
         :raises UnknownActionException: If action does not exist.
 
         """
-        if kwargs is None:
-            kwargs=dict()
-        actions = self.actions.get(name)
-        if actions is None:
-            raise UnknownActionException("No such action '{}'".format(name))
-
-        stash = dict()
-        immutable = False
+        success = False
         try:
-            if "check" in actions:
-                if not immutable:
-                    self.make_immutable()
-                    immutable = True
-                for cb in actions["check"]:
-                    if not cb(self, stash, **kwargs):
-                        return False
-            if "init" in actions:
-                if not immutable:
-                    self.make_immutable()
-                    immutable = True
-                for cb in actions["init"]:
-                    cb(self, stash, **kwargs)
-        finally:
-            if immutable:
-                self.make_mutable()
+            if kwargs is None:
+                kwargs=dict()
+            actions = self.actions.get(name)
+            if actions is None:
+                raise UnknownActionException("No such action '{}'".format(name))
 
-        # Save game state for UNDO and roll-back
-        self.journal.append( (name, kwargs, stash) )
-        self.undoable += 1
+            stash = dict()
+            for cb in actions.get("check", ()):
+                if not cb(self, stash, **kwargs):
+                    return False
+            for cb in actions.get("init", ()):
+                cb(self, stash, **kwargs)
 
-        # Execute the action, all the fun happens here
-        for stage in ENGINE_CALL_ORDER:
-            if stage in actions:
-                for cb in actions[stage]:
-                    cb(self, stash, **kwargs)
-
-        # If anyone wants to be notified, send them notification information.
-        for player in self.notified:
-            p_kwargs = copy.deepcopy(kwargs)
-            if "notify" in actions:
-                for cb in actions["notify"]:
+            # If anyone wants to be notified, send them notification information.
+            for player in self.notified:
+                p_kwargs = copy.deepcopy(kwargs)
+                for cb in actions.get("notify", ()):
                     if p_kwargs is not None:
                         p_kwargs = cb(self, stash, player, p_kwargs)
-            if p_kwargs is not None:
-                self.notify(player, Notice(name=name, type=NoticeType.CALL, data=p_kwargs))
+                if p_kwargs is not None:
+                    self.notify(player, Notice(name=name, type=NoticeType.CALL, data=p_kwargs))
 
-        if actions.get('autocommit', False):
-            self.commit()
-        return True
+            with self.write_lock():
+                # Save game state for UNDO and roll-back
+                self.journal.append( (name, kwargs, stash) )
+                self.undoable += 1
+
+                # Execute the action, all the fun happens here
+                for stage in ENGINE_CALL_ORDER:
+                    if stage in actions:
+                        for cb in actions[stage]:
+                            cb(self, stash, **kwargs)
+
+                if actions.get('autocommit', False):
+                    self.commit()
+
+            success = True
+            return True
+
+        finally:
+            if success and callable(on_success):
+                try:
+                    on_success()
+                except Exception:
+                    pass
+            elif not success and callable(on_failure):
+                try:
+                    on_failure()
+                except Exception:
+                    pass
 
     def observe(self, player, cb):
         """
@@ -261,7 +286,6 @@ class Engine(Object):
 
     def notify_immediate(self, player, notice):
         """Send a notice to one or more players"""
-#         print(id(self), "notify", player, notice)
         for p in tupley(player):
             if p in self.notified:
                 for pair in self.notified[p]:

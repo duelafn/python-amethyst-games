@@ -22,6 +22,10 @@ AmethystGameException
 import base64
 import random
 import struct
+import threading
+import weakref
+
+from amethyst.core import cached_property
 
 LONGMOD = 1<<64-1
 
@@ -52,3 +56,49 @@ def tupley(thingun):
     if isinstance(thingun, (list, tuple, set, frozenset)):
         return thingun
     return (thingun,)
+
+
+class AmethystWriteLockInstance(object):
+    def __init__(self, obj, lock, make_mutable=True):
+        self.obj = weakref.ref(obj)
+        self.lock = lock
+        self.make_mutable = make_mutable
+        self.unlock = False
+        self.make_immutable = False
+
+    def __enter__(self):
+        if self.lock.acquire():
+            self.unlock = True
+        else:
+            raise Exception("Error")
+
+        obj = self.obj()
+        if self.make_mutable and not obj.amethyst_is_mutable():
+            self.make_immutable = True
+            try:
+                obj.make_mutable()
+            except Exception:
+                self.lock.release()
+                raise
+
+        return obj
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.make_immutable:
+            self.make_immutable = False
+            try:
+                self.obj().make_immutable()
+            except Exception:
+                pass
+        if self.unlock:
+            self.unlock = False
+            self.lock.release()
+
+
+class AmethystWriteLocker(object):
+    @cached_property
+    def _write_lock(self):
+        return threading.RLock()
+
+    def write_lock(self, make_mutable=True):
+        return AmethystWriteLockInstance(self, self._write_lock, make_mutable=make_mutable)
