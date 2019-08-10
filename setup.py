@@ -44,7 +44,7 @@ setuptools.setup(
     long_description = readme,
     packages     = setuptools.find_packages(exclude=("example",)),
     requires     = [ 'amethyst.core', 'six' ],
-    install_requires = [ 'setuptools' ],
+#     install_requires = [ 'setuptools' ],
     namespace_packages = [ 'amethyst' ],
     test_suite   = 'setup.my_test_suite',
 )
