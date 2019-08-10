@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from amethyst.core  import Object, Attr
 from amethyst.games import Engine, EnginePlugin, Filter
-from amethyst.games.plugins import Grants, Turns, Action
+from amethyst.games.plugins import GrantManager, Turns, Grant
 
 # Argument parsing
 import argparse
@@ -45,8 +45,8 @@ class TTT_Engine(Engine):
         if self.board is None:
             self.board = [ [None] * self.width for i in range(self.height) ]
 
-        # Most turn-based games will want the Grants and Turns plugin
-        self.register_plugin(Grants())
+        # Most turn-based games will want the GrantManager and Turns plugin
+        self.register_plugin(GrantManager())
         self.register_plugin(Turns())
 
         # All games need some plugins to implemnt behavior. Some games will
@@ -106,7 +106,7 @@ class TicTacToe(EnginePlugin):
         game.commit()
         game.turn_start()
         print("Grant placement!")
-        game.grant(game.turn_player(), Action(name="place"))
+        game.grant(game.turn_player(), Grant(name="place"))
 
     def is_valid_placement(self, game, x, y):
         return game.board[y][x] is None
@@ -129,7 +129,7 @@ class TicTacToe(EnginePlugin):
         Place action: Mark square with player number and grant end of turn action.
         """
         game.board[y][x] = game.turn_player_num()
-        game.grant(game.turn_player(), Action(name="end_turn"))
+        game.grant(game.turn_player(), Grant(name="end_turn"))
 
     def _end_turn_action_(self, game, stash):
         """

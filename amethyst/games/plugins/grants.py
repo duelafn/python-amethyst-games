@@ -6,8 +6,8 @@
 from __future__ import division, absolute_import, print_function, unicode_literals
 
 __all__ = """
-Action
-Grants
+Grant
+GrantManager
 """.split()
 
 import six
@@ -22,15 +22,31 @@ from amethyst.games.filters import Filterable, FILTER_ALL
 NoticeType.register(GRANT=":grant")
 NoticeType.register(EXPIRE=":expire")
 
-# class Achievement(Filterable):
-#     @classmethod
-#     def from_action(cls, action):
-#         init = dict(id=action.id)
-#         if action.name: init['name'] = action.name
-#         if action.flags: init['flags'] = set(action.flags)
-#         return cls(init)
 
-class Action(Filterable):
+class Grant(Filterable):
+    """
+    User grant, authorizes a client to call a game action by name
+
+    :ivar str id: Unique identifier
+
+    :ivar str name: Action name to call
+
+    :ivar set(str) flags:
+
+    :ivar dict kwargs: Forced parameters, will override anything requested
+        by the client.
+
+    :ivar dict defaults: Default parameters, will supplement anything
+        missing from the client call.
+
+    :ivar data:
+
+    :ivar repeatable:
+
+    :ivar list(str) expires: Grant ids which will be expired upon
+        successful submission of the action call.
+    """
+
     kwargs = Attr(isa=dict)
     defaults = Attr(isa=dict)
     data = Attr(isa=dict)
@@ -46,8 +62,21 @@ class Action(Filterable):
 #     requires = Attr(tupley)
 #     conflicts = Attr(tupley)
 
+    def call(self, **kwargs):
+        return Call(id=self.id, name=self.name, kwargs=kwargs)
 
-class Grants(EnginePlugin):
+
+class Call(Filterable):
+    """
+    A Call may be used to trigger a grant.
+
+    Often a game will send Grants to clients and receive Calls from
+    clients, then trigger the Grant referred to by the Call.
+    """
+    kwargs = Attr(isa=dict)
+
+
+class GrantManager(EnginePlugin):
     """
     :ivar grants: Currently active grants. dict: PLAYER_ID => list(GRANTS)
     """
@@ -66,9 +95,6 @@ class Grants(EnginePlugin):
         """
         Player interface to actions
 
-        call() may be the mover and shaker of the engine, but it lives in a
-        gated community, and trigger() holds the keys.
-
         Actions perform operations on the game state, but actions should
         never be called directly by players. Instead, a player receives
         grants for each action it has been granted permission to trigger.
@@ -81,30 +107,29 @@ class Grants(EnginePlugin):
         grant may also be flagged as repeatable in which case it will not
         be consumed even if successful).
         """
+        grant = self.find_grant(game, player, id)
+        if not grant:
+            return False
 
-        a = self.find_grant(game, player, id)
-        if not a: return False
-
-        # Actions can default or force certain kwargs:
-        if a.kwargs or a.defaults:
+        # Grants can default or force certain kwargs:
+        if grant.kwargs or grant.defaults:
             kwargs = { k: v for k, v in kwargs.items() }
-        if a.kwargs:
-            kwargs.update(a.kwargs)
-        if a.defaults:
-            for k, v in six.iteritems(a.defaults):
+        if grant.kwargs:
+            kwargs.update(grant.kwargs)
+        if grant.defaults:
+            for k, v in six.iteritems(grant.defaults):
                 kwargs.setdefault(k, v)
 
-        # Finally call the action
-        ok = game.schedule(a.name, kwargs)
-
-        if ok:
-            self.expire(game, a.expires)
-            if not a.repeatable:
-                self.expire(game, a.id)
+        # Finally try to schedule the action
+        if game.schedule(grant.name, kwargs):
+            self.expire(game, grant.expires)
+            if not grant.repeatable:
+                self.expire(game, grant.id)
+            return True
+        return False
 
     def _grant(self, game, players, actions):
         for p in tupley(players):
-#             print(id(game), "grant notify", p, actions)
             game.notify(p, Notice(type=NoticeType.GRANT, data=dict(players=p, actions=actions)) )
             if p not in self.grants:
                 self.grants[p] = dict()
@@ -113,22 +138,13 @@ class Grants(EnginePlugin):
 
     def grant(self, game, players, actions):
         if game.is_server():
-#             print(id(game), "SERVER: grant", str(actions))
             self._grant(game, players, actions)
         return self
 
-    @event_listener(NoticeType.GRANT)
-    def server_grant_notice(self, game, seq, player, notice):
-        """Process a grant Notice from the server."""
-#         print(id(game), "CLIENT: grant notice", str(notice))
-        print((self.__class__.__name__, game.__class__.__name__, seq.__class__.__name__, player.__class__.__name__))
-        if game.is_client():
-            self._grant(game, notice.data.get('players'), notice.data.get('actions'))
-
-    def _expire(self, game, filters=FILTER_ALL):
+    def _expire(self, game, filters):
         if not filters:
             return
-        game.notify(game.players, Notice(type=NoticeType.EXPIRE, data=filters))
+        game.notify(game.players, Notice(type=NoticeType.EXPIRE, data={ 'filters': filters }))
         for filt in tupley(filters):
             # Optimization for a common case
             if filt is FILTER_ALL:
@@ -142,15 +158,20 @@ class Grants(EnginePlugin):
                     self.grants[p] = [ a for a in self.grants[p] if not filt.accepts(a) ]
 
     def expire(self, game, filters=FILTER_ALL):
-#         if game.is_server():
         self._expire(game, filters)
         return self
+
+    @event_listener(NoticeType.GRANT)
+    def server_grant_notice(self, game, seq, player, notice):
+        """Process a grant Notice from the server."""
+        if game.is_client():
+            self._grant(game, notice.data.get('players'), notice.data.get('actions'))
 
     @event_listener(NoticeType.EXPIRE)
     def server_expire_notice(self, game, notice):
         """Process an expire Notice from the server."""
         if game.is_client():
-            self._expire(game, notice.data)
+            self._expire(game, notice.data.get('filters'))
 
     def find_grant(self, game, player, id):
         """
@@ -159,7 +180,7 @@ class Grants(EnginePlugin):
         if player in self.grants:
             if id in self.grants[player]:
                 a = self.grants[player][id]
-                if isinstance(a, Action):
+                if isinstance(a, Grant):
                     return a
         return None
 
@@ -167,7 +188,6 @@ class Grants(EnginePlugin):
         """
         Return a tuple of player grants matching the requested filter (default all grants).
         """
-#         print(id(game), "list_grants", str(self.grants))
         if player not in self.grants:
             return ()
 
