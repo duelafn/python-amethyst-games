@@ -6,11 +6,13 @@
 
 __all__ = """
 EnginePlugin
+action
 event_listener
 """.split()
 
 import copy
 
+import amethyst.core.obj
 from amethyst.core import Object, Attr, cached_property
 
 from .util import PluginCompatibilityException
@@ -18,7 +20,7 @@ from .util import PluginCompatibilityException
 
 class event_listener(object):
     """
-    Enables automatic registration with the engine event dispatcher.
+    Decorator for registration with the engine event dispatcher.
 
     When an EnginePlugin method is decorated with thie class, the plugin
     will automatically register it with the engine so that any events of
@@ -59,9 +61,150 @@ class event_listener(object):
         return self
 
 
+class action(object):
+    """
+    Plugin action proerty decorator.
 
-class EnginePlugin(Object):
-    """EnginePlugin
+    class MyPlugin(EnginePlugin):
+        @action
+        def place_robber(self, engine, stash, **kwargs):
+            ...
+
+        @place_robber.check
+        def place_robber(self, engine, stash, **kwargs):
+            ...
+
+    See `Engine.call_immediate` for more details about how these are used.
+    """
+
+    def __init__(self, *args, action=None, name=None):
+        self.cb = dict()
+        if args:
+            if action:
+                raise Exception("May not specify 'action' named parameter with an unnamed argument")
+            if len(args) > 1:
+                raise Exception("Exptected only a single argument")
+            action = args[0]
+        if action:
+            self.cb['action'] = action
+            self.name = action.__name__
+        if name is not None:
+            self.name = name
+
+    def __call__(self, *args, **kwargs):
+        if 'action' in self.cb:
+            raise Exception("Plugin actions are not directly callable. Factor common code into a standard method or use Engine.call_immediate(...) instead")
+        elif args:
+            self.cb['action'] = args[0]
+            self.name = args[0].__name__
+
+
+    def __contains__(self, item):
+        return item in self.cb
+
+    def call(self, cb, *args, **kwargs):
+        if cb in self.cb:
+            return self.cb[cb](*args, **kwargs)
+        return None
+
+    def check(self, func):
+        """
+        Called when immutable. Return `False` to cancel the action.
+
+        .. note:: Any other return value, including `None`, will allow the
+        action to proceed!
+
+        .. note:: This callback may be called more than once. It amy be
+        called at the time that an action is scheduled and then again just
+        before executing. If needed, set a stash value as a flag to prevent
+        extra work. Just keep in mind that the game state may chnge between
+        calls to check.
+        """
+        self.cb['check'] = func
+        return self
+
+    def init(self, func):
+        """
+        Called when immutable. changes to the stash will be saved in the
+        journal. Generate random numbers here!
+        """
+        self.cb['init'] = func
+        return self
+
+    def notify(self, func):
+        """
+        Called after acceptance and init, but before actually performing
+        the action.
+
+        Callback is passed: engine, stash, player, p_kwargs
+
+        p_kwargs is the proposed dictionary of information to send to the
+        player. The callback should return a censored or augmented
+        dictionary for the player.
+
+        Notify callbacks are called in order and each receives the
+        dictionary returned by its predecessor. The final dictionary is
+        what is sent to the player.
+
+        Return `None` to break the chain and prevent notifying the client.
+
+        Return an empty dictionary to notify the client but to send them no
+        information.
+        """
+        self.cb['notify'] = func
+        return self
+
+    def before(self, func):
+        """
+        Called just before the action.
+        """
+        self.cb['before'] = func
+        return self
+
+    def after(self, func):
+        """
+        Called just after the action.
+        """
+        self.cb['after'] = func
+        return self
+
+#     def keep(self, func):
+#         """
+#         Called after all action callbacks and before/after callbacks
+#         succeed. Failure here is ignored.
+#         """
+#         self.cb['keep'] = func
+#         return self
+#
+#     def undo(self, func):
+#         """
+#         Called if any action callbacks and before/after callbacks raise an
+#         exception. Failure here is ignored.
+#         """
+#         self.cb['undo'] = func
+#         return self
+#
+#     def client_action(self, func):
+#         self.cb['client_action'] = func
+#         return self
+
+
+class PluginMetaclass(amethyst.core.obj.AttrsMetaclass):
+    def __new__(cls, class_name, bases, attrs):
+        actions = dict()
+        for val in attrs.values():
+            if isinstance(val, action):
+                actions[val.name] = val
+        new_cls = super(PluginMetaclass,cls).__new__(cls, class_name, bases, attrs)
+        new_cls._actions = actions
+        return new_cls
+
+BasePlugin = PluginMetaclass(str('BasePlugin'), (), {})
+
+
+class EnginePlugin(Object, BasePlugin):
+    """
+    EnginePlugin
 
     :cvar AMETHYST_ENGINE_DEPENDS: Iterable collection of plugin class
         names (as strings) which this plugin delends on. An exception will

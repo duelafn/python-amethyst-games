@@ -45,7 +45,6 @@ class Engine(AmethystWriteLocker, Object):
     #   _client_mode:  bool: True when running in client mode
     #   _client_seq:    int: client event sequence number
     #   initialization_data: dict: cached initialization data
-    #   actions:       dict: NAME => CALLBACK
     #   journal:       list: tuple(action, kwargs)
     #   notified:      dict: PLAYER => [ [ COUNTER, CALLBACK ], ... ]
     #   player          str: if non Null, may be used as default player id in some methods
@@ -58,7 +57,6 @@ class Engine(AmethystWriteLocker, Object):
         self._client_mode = client
         self._client_seq = 0
         self._event_dispatch = { NoticeType.CALL: [ self.call_event_listener ] }
-        self.actions = dict()
         self.journal = [ ]
         self.notified = dict()
         self.player = kwargs.pop("player", None)
@@ -106,16 +104,16 @@ class Engine(AmethystWriteLocker, Object):
     def schedule(self, name, args=None, **kwargs):
         if args is None:
             args=dict()
-        actions = self.actions.get(name)
-        if actions is None:
+        actions = self._get_actions(name)
+        if not actions:
             raise UnknownActionException("No such action '{}'".format(name))
 
-        if "check" in actions:
-            stash = dict()
-            for cb in actions["check"]:
-                if not cb(self, stash, **args):
-                    return False
+        stash = dict()
+        for action, plugin in actions:
+            if action.call("check", plugin, self, stash, **(args or {})) is False:
+                return False
 
+        kwargs['stash'] = stash
         self._queue.put(('call', (name, args), kwargs))
         return True
 
@@ -143,13 +141,24 @@ class Engine(AmethystWriteLocker, Object):
         for p in self.plugins:
             p.make_immutable()
 
-    def call_immediate(self, name, kwargs=None, on_success=None, on_failure=None):
-        """Call an action by name.
+    def _get_actions(self, name):
+        actions = []
+        for p in self.plugins:
+            action = p._actions.get(name, None)
+            if action is not None:
+                actions.append((action, p))
+        return actions
+
+    def call_immediate(self, name, kwargs=None, on_success=None, on_failure=None, stash=None):
+        """
+        Call an action by name.
 
         Main mover and shaker of the engine. When an action is called, we
-        set the immutable flag and execute the `_{action}_check_` method in
-        each registered plugin in registration order. If any return False,
-        the action is aborted and False is returned.
+        set the immutable flag and execute the check callbacks in each
+        action in registration order. If any return False, the action is
+        aborted and False is returned.
+
+        See `amethyst.games.plugin.action` for more details.
 
         - check    : [immutable] return False to cancel the action
         - init     : [immutable] changes to the stash will be saved in the journal (generate random numbers here)
@@ -162,18 +171,18 @@ class Engine(AmethystWriteLocker, Object):
         - notify   :
 
         .. note:: Technically, the immutability flag is only advisory, but
-        since there is no unrolling mechanism for partially completed
-        _check_, it is a bad idea for plugins to attempt to bypass immutability.
+        since there is no unrolling mechanism for partially completed check
+        or init, it is a bad idea for plugins to attempt to bypass immutability.
 
-        After the _init_ phase, the immutable flag is unset, a checkpoint is
-        made and the action is accepted / added to the journal. Then, for
-        each of before, action, and after phases the `_{action}_{phase}_`
-        method is executed for each registered plugin in registration
-        order.
+        After the _init_ phase, the immutable flag is unset, a checkpoint
+        is made and the action is accepted / added to the journal. Then,
+        for each of before, action, and after phases the corresponding
+        callbacks are executed for each plugin in registration order.
 
-        `_{action}_{phase}_` methods should have the signature:
+        Callbacks should have the signature:
 
-            def _{action}_{phase}_(self, engine, stash, **kwargs):
+            @action
+            def myaction(self, engine, stash, **kwargs):
 
         * `self`: the engine plugin itself
         * `engine`: this engine object
@@ -181,15 +190,16 @@ class Engine(AmethystWriteLocker, Object):
         * `kwargs`: any arguments required for the action
 
         After the action executes, a copy of the action arguments will be
-        passed to the `_{action}_notify_` method once for each player.
-        The method may return a new or modified dict which will be sent as
-        a notification to the player. Uses for this are to censor secret
-        information or to include additional game state. The notify method
-        has a different signature, it takes a player id and kwargs are
-        passed as a dictionary reference, a copy of the original arguments
-        which may be returned modified:
+        passed to `notify` callbacks once for each player. The method may
+        return a new or modified dict which will be sent as a notification
+        to the player. Uses for this are to censor secret information or to
+        include additional game state. The notify method has a different
+        signature, it takes a player id and kwargs are passed as a
+        dictionary reference, a copy of the original arguments which may be
+        returned modified:
 
-            def _{action}_notify_(self, engine, stash, player, kwargs):
+            @myaction.notify
+            def myaction(self, engine, stash, player, kwargs):
                 return kwargs  # customized for player
 
         .. todo:: 1.0: Automatic roll-back if an exception is raised in any
@@ -202,23 +212,25 @@ class Engine(AmethystWriteLocker, Object):
         try:
             if kwargs is None:
                 kwargs=dict()
-            actions = self.actions.get(name)
-            if actions is None:
+            actions = self._get_actions(name)
+            if not actions:
                 raise UnknownActionException("No such action '{}'".format(name))
 
-            stash = dict()
-            for cb in actions.get("check", ()):
-                if not cb(self, stash, **kwargs):
+            if stash is None:
+                stash = dict()
+            for action, plugin in actions:
+                if action.call("check", plugin, self, stash, **kwargs) is False:
                     return False
-            for cb in actions.get("init", ()):
-                cb(self, stash, **kwargs)
+            for action, plugin in actions:
+                action.call("init", plugin, self, stash, **kwargs)
 
             # If anyone wants to be notified, send them notification information.
             for player in self.notified:
                 p_kwargs = copy.deepcopy(kwargs)
-                for cb in actions.get("notify", ()):
-                    if p_kwargs is not None:
-                        p_kwargs = cb(self, stash, player, p_kwargs)
+                for action, plugin in actions:
+                    if "notify" in action:
+                        if p_kwargs is not None:
+                            p_kwargs = action.call("notify", plugin, self, stash, player, p_kwargs)
                 if p_kwargs is not None:
                     self.notify(player, Notice(name=name, type=NoticeType.CALL, data=p_kwargs))
 
@@ -228,16 +240,15 @@ class Engine(AmethystWriteLocker, Object):
                 self.undoable += 1
 
                 # Execute the action, all the fun happens here
-                for stage in ENGINE_CALL_ORDER:
-                    if stage in actions:
-                        for cb in actions[stage]:
-                            cb(self, stash, **kwargs)
+                for stage in ('before', 'action', 'after'):
+                    for action, plugin in actions:
+                        action.call(stage, plugin, self, stash, **kwargs)
 
-                if actions.get('autocommit', False):
-                    self.commit()
+                # TODO: Undoable actions
+                self.commit()
 
             success = True
-            return True
+            return success
 
         finally:
             if success and callable(on_success):
@@ -319,21 +330,6 @@ class Engine(AmethystWriteLocker, Object):
             if hasattr(self, meth):
                 raise PluginCompatibilityException("Engine already has a method '{}' (attempted override by {})".format(meth, name))
             self._register_method(meth, getattr(plugin, attr))
-
-        for attr in dir(plugin):
-            if attr.startswith("_") and attr.endswith("_"):
-                for prefix in ENGINE_CALL_TYPES:
-                    if attr.endswith("_{}_".format(prefix)) and len(attr) > 3 + len(prefix):
-                        action = attr[1:-(2+len(prefix)):]
-                        if action not in self.actions:
-                            self.actions[action] = dict()
-                        if prefix not in self.actions[action]:
-                            self.actions[action][prefix] = list()
-
-                        if prefix in ENGINE_CALL_ORDER and not hasattr(plugin, "_{}_undo_".format(action)):
-                            self.actions[action]['autocommit'] = True
-
-                        self.actions[action][prefix].append(getattr(plugin, attr))
 
     def _register_method(self, name, callback):
         """Method exists just to make closure work"""

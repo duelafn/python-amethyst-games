@@ -9,7 +9,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from amethyst.core  import Object, Attr
-from amethyst.games import Engine, EnginePlugin, Filter
+from amethyst.games import Engine, EnginePlugin, action, Filter
 from amethyst.games.plugins import GrantManager, Turns, Grant
 
 # Argument parsing
@@ -108,34 +108,38 @@ class TicTacToe(EnginePlugin):
     def is_valid_placement(self, game, x, y):
         return game.board[y][x] is None
 
-    def _begin_action_(self, game, stash):
+    @action
+    def begin(self, game, stash):
         """
         Begin: No setup, just move to first turn.
         """
         print("Beginning...")
         self.next_turn(game)
 
-    def _place_check_(self, game, stash, x, y):
-        """
-        Place check: Verify spot is empty
-        """
-        return self.is_valid_placement(game, x, y)
-
-    def _place_action_(self, game, stash, x, y):
+    @action
+    def place(self, game, stash, x, y):
         """
         Place action: Mark square with player number and grant end of turn action.
         """
         game.board[y][x] = game.turn_player_num()
         game.grant(game.turn_player(), Grant(name="end_turn"))
 
-    def _end_turn_action_(self, game, stash):
+    @place.check
+    def place(self, game, stash, x, y):
+        """
+        Place check: Verify spot is empty
+        """
+        return self.is_valid_placement(game, x, y)
+
+    @action
+    def end_turn(self, game, stash):
         """
         End turn action: pretty boring
 
-        In this example, I have a separate "end turn" action (to allow
-        undo). If we wanted, we could also have simplified and put this
-        .next_turn at the end of the "place" action, then clients would
-        just take turns issuing "place".
+        In this example, I have a separate "end turn" action (to eventually
+        allow undo). If we wanted, we could also have simplified and put
+        this .next_turn at the end of the "place" action, then clients
+        would just take turns issuing "place".
         """
         self.next_turn(game)
 
@@ -261,7 +265,7 @@ def MAIN1(argv):
 
     # Setup and start the game
     game.initialize()
-    game.call("begin")
+    game.call_immediate("begin")
 
     while True:
         # Get player action and pass it to the game
@@ -316,7 +320,7 @@ def MAIN2(argv):
         server.observe(p.player, p.on_event)              # Auxiliary observer (prints to terminal)
 
     # Start the game!
-    server.call("begin")
+    server.call_immediate("begin")
 
     while True:
         # Request an action from the current player
@@ -332,4 +336,4 @@ def MAIN2(argv):
 
 
 if __name__ == '__main__':
-    MAIN2(getopts())
+    MAIN1(getopts())
