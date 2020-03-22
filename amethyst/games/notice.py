@@ -3,10 +3,7 @@
 
 """
 # SPDX-License-Identifier: LGPL-3.0
-from __future__ import division, absolute_import, print_function, unicode_literals
 __all__ = 'Notice NoticeType'.split()
-
-import six
 
 from amethyst.core import Object, Attr
 
@@ -20,7 +17,7 @@ class NoticeType(object):
 #         import sys, traceback
 #         traceback.print_stack()
 #         sys.stderr.write("FOO " + str([ f for f in dir(self) if not f.startswith("_")]) + " " + str(kwargs) + "\n")
-        for key, token in six.iteritems(kwargs):
+        for key, token in kwargs.items():
             if hasattr(self, key):
                 if token == getattr(self, key):
                     continue
@@ -34,8 +31,8 @@ class NoticeType(object):
 
 
 class Notice(Object):
-    name = Attr(isa=six.text_type)
-    type = Attr(isa=six.text_type, builder=lambda: "notice")
+    name = Attr(isa=str)
+    type = Attr(isa=str, builder=lambda: "notice")
     data = Attr(isa=dict)
 
     def __init__(self, *args, **kwargs):

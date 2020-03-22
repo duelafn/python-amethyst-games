@@ -3,7 +3,6 @@
 
 """
 # SPDX-License-Identifier: LGPL-3.0
-from __future__ import division, absolute_import, print_function, unicode_literals
 
 __all__ = """
 EnginePlugin
@@ -11,7 +10,6 @@ event_listener
 """.split()
 
 import copy
-import six
 
 from amethyst.core import Object, Attr, cached_property
 

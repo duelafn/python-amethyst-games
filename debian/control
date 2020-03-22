@@ -3,16 +3,10 @@ Maintainer: Dean Serenevy <dean@serenevy.net>
 Section: python
 Priority: optional
 Build-Depends: debhelper (>= 10), dh-python,
- python-all, python-setuptools, python-six, python-amethyst-core, python-pytest,
- python3-all, python3-setuptools, python3-six, python3-amethyst-core, python3-pytest
+ python3-all, python3-setuptools, python3-amethyst-core, python3-pytest
 Standards-Version: 4.1.4
-
-Package: python-amethyst-games
-Architecture: all
-Depends: ${misc:Depends}, ${python:Depends}, python-six, python-amethyst-core
-Description: Game Engine Toolkit (Python 2)
 
 Package: python3-amethyst-games
 Architecture: all
-Depends: ${misc:Depends}, ${python3:Depends}, python3-six, python3-amethyst-core
-Description: Game Engine Toolkit (Python 3)
+Depends: ${misc:Depends}, ${python3:Depends}, python3-amethyst-core
+Description: Game Engine Toolkit

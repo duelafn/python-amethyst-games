@@ -3,7 +3,6 @@
 
 """
 # SPDX-License-Identifier: LGPL-3.0
-from __future__ import division, absolute_import, print_function, unicode_literals
 
 __all__ = """
 
@@ -14,8 +13,6 @@ IFilter
 Filterable
 
 """.split()
-
-import six
 
 from amethyst.core import Object, Attr
 
@@ -80,7 +77,7 @@ class Filter(IFilter):
 
     def test_item(self, test, val):
         if test is None: return None
-        if isinstance(test, six.string_types):
+        if isinstance(test, str):
             return test == val
         if isinstance(test, (list, tuple, set, frozenset)):
             return val in test
@@ -88,7 +85,7 @@ class Filter(IFilter):
 
     def test_set(self, test, vals):
         if test is None: return None
-        if isinstance(test, six.string_types):
+        if isinstance(test, str):
             return test in vals
         if isinstance(test, (list, tuple)):
             for t in test:
@@ -103,8 +100,8 @@ class Filter(IFilter):
         raise TypeError("Not Implemented")
 
 class Filterable(Object):
-    id = Attr(isa=six.text_type, default=nonce)
-    name = Attr(isa=six.text_type)
+    id = Attr(isa=str, default=nonce)
+    name = Attr(isa=str)
     flags = Attr(isa=set, default=set)
 
     def __init__(self, *args, **kwargs):

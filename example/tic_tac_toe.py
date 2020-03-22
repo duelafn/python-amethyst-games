@@ -1,13 +1,10 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 # SPDX-License-Identifier: LGPL-3.0
-from __future__ import division, absolute_import, print_function, unicode_literals
 
 import os.path
 import random
 import sys
-
-from six.moves import input
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 

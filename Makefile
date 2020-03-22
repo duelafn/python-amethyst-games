@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0
 
 PKGNAME = amethyst-games
-PKG_VERSION = $(shell python -c 'import re; print(re.search("__version__ = \"([\d.]+)\"", open("amethyst/games/__init__.py").read()).group(1))')
+PKG_VERSION = $(shell python3 -c 'import re; print(re.search("__version__ = \"([\d.]+)\"", open("amethyst/games/__init__.py").read()).group(1))')
 PY_FILES = $(shell find tests amethyst/games -type f -name "*.py")
 
 .PHONY: all sdist dist debbuild clean test
@@ -11,8 +11,6 @@ check:
 	@find amethyst/games example tests setup.py -type f -not -empty -exec perl -nE '($$hit = 1), exit if /SPDX\-License\-Identifier/; END { $$hit or say "$$ARGV: MISSING SPDX-License-Identifier" }' {} \;
 	@echo python3 -m flake8 --config=extra/flake8.ini ...
 	@python3 -m flake8 --config=extra/flake8.ini example/*.py ${PY_FILES}
-	@echo python2 -m flake8 --config=extra/flake8.ini ...
-	@python2 -m flake8 --config=extra/flake8.ini example/*.py ${PY_FILES}
 	@echo OK
 
 clean:
@@ -42,7 +40,6 @@ sdist: test
 
 test:
 	AMETHEST_TEST_ALL=1 python3 -E -B -m nose --with-coverage --verbosity=0 --cover-package=amethyst.games tests
-	AMETHEST_TEST_ALL=1 python2 -E -B -m nose --with-coverage --verbosity=0 --cover-package=amethyst.games tests
 
 zip: test
 	python3 setup.py sdist --format=zip

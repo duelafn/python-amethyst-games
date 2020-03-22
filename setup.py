@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Game Engine Toolkit
 """
@@ -29,8 +29,6 @@ setuptools.setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Operating System :: OS Independent',
         'Topic :: Software Development',
@@ -41,7 +39,7 @@ setuptools.setup(
     description  = "Game Engine Toolkit",
     long_description = readme,
     packages     = setuptools.find_packages(exclude=("example",)),
-    requires     = [ 'amethyst.core', 'six' ],
+    requires     = [ 'amethyst.core' ],
 #     install_requires = [ 'setuptools' ],
     namespace_packages = [ 'amethyst' ],
     test_suite   = 'setup.my_test_suite',

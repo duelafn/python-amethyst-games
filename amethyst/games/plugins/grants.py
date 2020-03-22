@@ -3,14 +3,11 @@
 
 """
 # SPDX-License-Identifier: LGPL-3.0
-from __future__ import division, absolute_import, print_function, unicode_literals
 
 __all__ = """
 Grant
 GrantManager
 """.split()
-
-import six
 
 from amethyst.core import Attr
 
@@ -117,7 +114,7 @@ class GrantManager(EnginePlugin):
         if grant.kwargs:
             kwargs.update(grant.kwargs)
         if grant.defaults:
-            for k, v in six.iteritems(grant.defaults):
+            for k, v in grant.defaults.items():
                 kwargs.setdefault(k, v)
 
         # Finally try to schedule the action
@@ -150,7 +147,7 @@ class GrantManager(EnginePlugin):
             if filt is FILTER_ALL:
                 self.grants = dict()
                 return
-            elif isinstance(filt, six.text_type):
+            elif isinstance(filt, str):
                 for g in self.grants.values():
                     g.pop(filt, None)
             else:
