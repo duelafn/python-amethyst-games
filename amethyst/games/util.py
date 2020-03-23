@@ -9,6 +9,7 @@ ADMIN
 NOBODY
 
 nonce
+random
 tupley
 
 AmethystGameException
@@ -19,14 +20,15 @@ AmethystGameException
 '''.split()
 
 import base64
-import random
-import struct
+import os
 import threading
 import weakref
 
+from random import SystemRandom
+
 from amethyst.core import cached_property
 
-LONGMOD = 1<<64-1
+random = SystemRandom()
 
 ADMIN = {}
 NOBODY = None
@@ -41,9 +43,7 @@ def nonce():
     Generate a random printable string identifier.
     Currently 20 characters long with 120 bits of entropy.
     """
-    # Yes, b64encode(os.random(15)) is easier, but this was fun (and runs in half the time)
-    num = random.getrandbits(120)
-    return base64.b64encode(struct.pack("ll", num % LONGMOD, num>>64)[0:15]).decode("UTF-8")
+    return base64.b64encode(os.urandom(15)).decode("UTF-8")
 
 def tupley(thingun):
     """

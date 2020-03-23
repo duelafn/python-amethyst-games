@@ -11,7 +11,6 @@ if sys.version_info < (3,5):
 import collections
 import copy
 import json
-import random
 import queue
 import threading
 
@@ -21,6 +20,7 @@ from .notice import Notice, NoticeType
 from .util import UnknownActionException, PluginCompatibilityException, NotificationSequenceException
 from .util import AmethystWriteLocker
 from .util import tupley
+from .util import random
 
 NoticeType.register(CALL=":call")
 NoticeType.register(INIT=":init")

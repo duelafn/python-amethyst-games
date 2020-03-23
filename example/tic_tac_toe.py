@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: LGPL-3.0
 
 import os.path
-import random
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -11,6 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from amethyst.core  import Object, Attr
 from amethyst.games import Engine, EnginePlugin, action, Filter
 from amethyst.games.plugins import GrantManager, Turns, Grant
+from amethyst.games.util import random
 
 # Argument parsing
 import argparse
