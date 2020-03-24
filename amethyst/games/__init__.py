@@ -4,7 +4,7 @@ Game Engine Toolkit
 """
 # SPDX-License-Identifier: LGPL-3.0
 
-__version__ = "0.5.2"
+__version__ = "0.6.0"
 
 from .engine import *    # noqa: F403
 from .filters import *   # noqa: F403

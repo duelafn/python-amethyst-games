@@ -39,7 +39,7 @@ setuptools.setup(
     description  = "Game Engine Toolkit",
     long_description = readme,
     packages     = setuptools.find_packages(exclude=("example",)),
-    requires     = [ 'amethyst.core' ],
+    requires     = [ 'amethyst.core (>=0.8.6)' ],
 #     install_requires = [ 'setuptools' ],
     namespace_packages = [ 'amethyst' ],
     test_suite   = 'setup.my_test_suite',

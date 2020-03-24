@@ -1,5 +1,11 @@
 
-amethyst-games 0.5.2
+amethyst-games 0.6.0 WIP
+  - INCOMPATIBLE: engine actions are scheduled so clients see actions in order
+  - INCOMPATIBLE: remove python 2 support
+  - INCOMPATIBLE: plugin actions marked via decorators not "_{action}_{stage}_" naming
+  - SwitchbackStartTurns
+
+amethyst-games 0.5.2 released 2019-06-11
   - INCOMPATIBLE: Class restructure (more plugins to reduce size of Engine)
   - INCOMPATIBLE: Rename "censor" action stage to "notify" since it can be used more generally
   - INCOMPATIBLE: push events to a queue for proper ordering
@@ -8,7 +14,7 @@ amethyst-games 0.5.2
   - game can assign random player slot
   - experimental event_listener decorator
 
-amethyst-games 0.5.1
+amethyst-games 0.5.1 released 2017-04-16
   - documentation
   - change exception types
   - autogenerate Filterable id's
