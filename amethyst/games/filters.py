@@ -30,14 +30,73 @@ class IFilter(Object):
     def accepts(self, obj):
         return False
 
+    def __and__(self, other):
+        if not isinstance(other, IFilter):
+            raise Exception("Can only & a Filter with another Filter")
+        return AndFilter(left=self, right=other)
+
+    def __or__(self, other):
+        if not isinstance(other, IFilter):
+            raise Exception("Can only | a Filter with another Filter")
+        return OrFilter(left=self, right=other)
+
+    def __xor__(self, other):
+        if not isinstance(other, IFilter):
+            raise Exception("Can only ^ a Filter with another Filter")
+        return XorFilter(left=self, right=other)
+
+    def __invert__(self):
+        return NotFilter(filter=self)
+
+
 class ClsFilterAll(IFilter):
     def accepts(self, obj):
         return True
 FILTER_ALL = ClsFilterAll()
 
+class BinOpFilter(IFilter):
+    left = Attr()
+    right = Attr()
+
+class AndFilter(BinOpFilter):
+    def accepts(self, obj):
+        return bool(self.left.accepts(obj)) and bool(self.right.accepts(obj))
+
+class OrFilter(BinOpFilter):
+    def accepts(self, obj):
+        return bool(self.left.accepts(obj)) or bool(self.right.accepts(obj))
+
+class XorFilter(BinOpFilter):
+    def accepts(self, obj):
+        return bool(self.left.accepts(obj)) ^ bool(self.right.accepts(obj))
+
+class NotFilter(IFilter):
+    filter = Attr()
+    def accepts(self, obj):
+        return not bool(self.filter.accepts(obj))
+
 class Filter(IFilter):
     """
     Filter
+
+    :ivar id: When a string, accepts any filterable with the given id. When
+    a list, tuple, set, or frozenset, accepts any filterable whose id is
+    listed.
+
+    :ivar name: When a string, accepts any filterable with the given name.
+    When a list, tuple, set, or frozenset, accepts any filterable whose
+    name is listed.
+
+    :ivar flag: When a string, accepts any filterable with the given flag.
+    When a list or tuple, accepts any filterable with ALL of the listed
+    flags. When a set, or frozenset, accepts any filterable with ANY of the
+    listed flags.
+
+    :ivar any: An iterable of `Filter`, will accept any filterable as long
+    as ANY of the listed filters accepts the filterable.
+
+    :ivar all: An iterable of `Filter`, will accept any filterable as long
+    as ALL of the listed filters accepts the filterable.
     """
     id    = Attr()
     name  = Attr()
