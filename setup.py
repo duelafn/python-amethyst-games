@@ -3,6 +3,9 @@
 Game Engine Toolkit
 """
 # SPDX-License-Identifier: LGPL-3.0
+import sys
+if sys.version_info < (3,6):
+    raise Exception("Python 3.6 required -- this is only " + sys.version)
 
 import io
 import os
@@ -40,6 +43,7 @@ setuptools.setup(
     long_description = readme,
     packages     = setuptools.find_packages(exclude=("example",)),
     requires     = [ 'amethyst.core (>=0.8.6)' ],
+    python_requires = '>=3.6',
 #     install_requires = [ 'setuptools' ],
     namespace_packages = [ 'amethyst' ],
     test_suite   = 'setup.my_test_suite',

@@ -4,9 +4,6 @@
 """
 # SPDX-License-Identifier: LGPL-3.0
 __all__ = 'Engine'.split()
-import sys
-if sys.version_info < (3,5):
-    raise Exception("Python 3.5 required -- this is only " + sys.version)
 
 import collections
 import copy
