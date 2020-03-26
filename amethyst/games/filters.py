@@ -8,7 +8,7 @@ __all__ = """
 
 IFilter
    Filter
-   ClsFilterAll FILTER_ALL
+   FILTER_ALL
 
 Filterable
 

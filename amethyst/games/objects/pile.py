@@ -7,11 +7,12 @@ __all__ = """
 Pile
 """.split()
 
-import itertools
 import collections
+import itertools
 
 from amethyst.core import Attr, Object
 
+from amethyst.games.filters import Filterable
 from amethyst.games.util import random
 
 def ctx_return(lst, n, as_list):
@@ -26,7 +27,7 @@ def ctx_return(lst, n, as_list):
     return lst[0] if lst else None
 
 
-class Pile(Object):
+class Pile(Filterable):
     """
     A pile of anything, draw pile, discard pile, player hand, stack of
     creatures, ...
@@ -35,8 +36,6 @@ class Pile(Object):
 
     :ivar stack: The actual stack of items. Defaults to a list, but you
     may pass an initial deque if you need that sort of access.
-
-    TODO: Create an "Ownable" role which we can apply to this for automatic filtering.
     """
     stack = Attr(isa=(list, collections.deque), default=list)
 
