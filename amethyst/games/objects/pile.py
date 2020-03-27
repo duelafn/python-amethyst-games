@@ -47,6 +47,8 @@ class Pile(Filterable):
         return self.stack.__iter__()
     def __reversed__(self):
         return self.stack.__reversed__()
+    def __contains__(self, needls):
+        return needle in self.stack
 
     def pick(self, n=1, as_list=None):
         """
@@ -161,6 +163,12 @@ class Pile(Filterable):
             if filt.accepts(x):
                 n += 1
         return n
+
+    def find(self, filt=FILTER_ALL):
+        """
+        Return list of indices of items matching the filter.
+        """
+        return [ i for (i, x) in enumerate(self.stack) if filt.accepts(x) ]
 
     def shuffle(self):
         random.shuffle(self.stack)
