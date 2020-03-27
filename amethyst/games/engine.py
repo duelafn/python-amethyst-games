@@ -73,7 +73,6 @@ class Engine(AmethystWriteLocker, Object):
         try:
             while True: # Breaks on queue.Empty exception
                 typ, args, kwargs = self._queue.get(block, timeout)
-                print((typ, args))
                 if typ == 'call':
                     self.call_immediate(*args, **kwargs)
                 elif typ == 'notify':
@@ -411,7 +410,6 @@ class Engine(AmethystWriteLocker, Object):
         if type not in self._event_dispatch:
             self._event_dispatch[type] = []
         self._event_dispatch[type].append(listener)
-#         print(id(self), "register listener", self._event_dispatch.keys())
 
     def dispatch_event(self, game, seq, player, notice):
         """
@@ -427,7 +425,6 @@ class Engine(AmethystWriteLocker, Object):
         if seq != self._client_seq:
             raise NotificationSequenceException("got {} expected {}".format(seq, self._client_seq))
 
-#         print(id(self), "dispatch", self._event_dispatch.keys())
         if notice.type in self._event_dispatch:
             for cb in self._event_dispatch[notice.type]:
                 cb(game, seq, player, notice)

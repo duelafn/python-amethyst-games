@@ -24,11 +24,13 @@ class IFilter(Object):
     """
     IFilter - filter interface
 
-    Defines required methods for filters.
+    Defines required methods for filters and implements logical operators
+    on Filters.
     """
 
     def accepts(self, obj):
         return False
+
 
     def __and__(self, other):
         if not isinstance(other, IFilter):
@@ -78,6 +80,8 @@ class NotFilter(IFilter):
 class Filter(IFilter):
     """
     Filter
+
+    If more than one attribute is set, then all must accept the filterable.
 
     :ivar id: When a string, accepts any filterable with the given id. When
     a list, tuple, set, or frozenset, accepts any filterable whose id is

@@ -17,6 +17,7 @@ import argparse
 def getopts():
     parser = argparse.ArgumentParser(description="""Tic-Tac-Toe Example Game""")
     parser.add_argument('--size', type=int, default=3, help='Board size')
+    parser.add_argument('--mode', type=str, default="c", help='Play mode, one of "c"ient/server, "l"ocal, or "a"utoplay.')
     return parser.parse_args()
 
 
@@ -71,10 +72,10 @@ class TTT_Engine(Engine):
 #
 # Implements actions / game logic
 #
-# Control methods have the form "_{action}_{stage}_". You can create any
-# actions you like and any sequence or combination of actions to move the
-# game along. Multiple plugins can be created if it makes organization
-# easier.
+# Control methods are decorated with @action or @myaction.{HOOK}. You can
+# create any actions you like and any sequence or combination of actions to
+# move the game along. Multiple plugins can be created if it makes
+# organization easier.
 
 class TicTacToe(EnginePlugin):
     """
@@ -102,7 +103,6 @@ class TicTacToe(EnginePlugin):
         """
         game.commit()
         game.turn_start()
-        print("Grant placement!")
         game.grant(game.turn_player(), Grant(name="place"))
 
     def is_valid_placement(self, game, x, y):
@@ -113,7 +113,6 @@ class TicTacToe(EnginePlugin):
         """
         Begin: No setup, just move to first turn.
         """
-        print("Beginning...")
         self.next_turn(game)
 
     @action
@@ -121,7 +120,7 @@ class TicTacToe(EnginePlugin):
         """
         Place action: Mark square with player number and grant end of turn action.
         """
-        game.board[y][x] = game.turn_player_num()
+        game.board[y][x] = game.turn_player()
         game.grant(game.turn_player(), Grant(name="end_turn"))
 
     @place.check
@@ -129,7 +128,9 @@ class TicTacToe(EnginePlugin):
         """
         Place check: Verify spot is empty
         """
-        return self.is_valid_placement(game, x, y)
+        # is_valid_placement was registered as an Engine method so it is
+        # available to all plugins, including ours.
+        return game.is_valid_placement(x, y)
 
     @action
     def end_turn(self, game, stash):
@@ -181,7 +182,9 @@ class TTTTT(TTTInterface):
         # Ask player what they want to do
         print("")
         self.print_board()
+        print("")
         cmd = input("Player {}: ".format(self.player)).split()
+        if not cmd: cmd = ['?']
 
         # Command parsing, build a filter that select the correct action
         # and set the arguments to pass to that action.
@@ -231,9 +234,8 @@ class DumbAI(TTTInterface):
         Choose an action from available grants and do it.
         """
         grants = self.engine.list_grants(self.player)
-        print(grants)
         if not grants:
-            exit()
+            raise Exception("AI player has no possible move!")
 
         # This game is simple enough that there is only a single active
         # grant at a time, thus choosing an action is easy:
@@ -273,7 +275,7 @@ def MAIN1(argv):
         args   = player.handle()
         if args:
             game.trigger(player.player, *args)
-
+            game.process_queue()
 
 
 # Main app 2 - client/server example
@@ -305,8 +307,6 @@ def MAIN2(argv):
         # state from the server (allowing for per-player secrets).
         init = server.dumps(server.initialization_data)
         player_state = server.dumps(server.get_state(p.player))
-        print("INIT:", init)
-        print("Player State:", player_state)
 
         # Initialize player's private engine
         p.engine.initialize(p.engine.loads(init))
@@ -332,8 +332,15 @@ def MAIN2(argv):
         if request:
             id, kwargs = server.loads(player.engine.dumps(request))
             server.trigger(player.player, id, kwargs)
-            exit()
 
 
 if __name__ == '__main__':
-    MAIN1(getopts())
+    argv = getopts()
+    if argv.mode[0].lower() == 'c':
+        MAIN2(argv)
+    elif argv.mode[0].lower() == 'l':
+        MAIN1(argv)
+    elif argv.mode[0].lower() == 'a':
+        print(f"Game mode '{argv.mode}' not implemented")
+    else:
+        print(f"Invalid game mode '{argv.mode}'")
