@@ -39,6 +39,15 @@ class Pile(Filterable):
     """
     stack = Attr(isa=(list, collections.deque), default=list)
 
+    def __len__(self):
+        return len(self.stack)
+    def __getitem__(self, idx):
+        return self.stack[idx]
+    def __iter__(self):
+        return self.stack.__iter__()
+    def __reversed__(self):
+        return self.stack.__reversed__()
+
     def pick(self, n=1, as_list=None):
         """
         Randomly remove n items assuming stack is not shuffled.
@@ -137,11 +146,21 @@ class Pile(Filterable):
             self.stack.extend(keep)
         return remove
 
-    def list(self, filt):
+    def list(self, filt=FILTER_ALL):
         """
         List items matching a Filter.
         """
         return [ x for x in self.stack if filt.accepts(x) ]
+
+    def count(self, filt=FILTER_ALL):
+        """
+        Count number of items matching a filter.
+        """
+        n = 0
+        for x in self.stack:
+            if filt.accepts(x):
+                n += 1
+        return n
 
     def shuffle(self):
         random.shuffle(self.stack)
