@@ -12,7 +12,7 @@ import itertools
 
 from amethyst.core import Attr, Object
 
-from amethyst.games.filters import Filterable
+from amethyst.games.filters import Filterable, FILTER_ALL
 from amethyst.games.util import random
 
 def ctx_return(lst, n, as_list):
@@ -118,10 +118,14 @@ class Pile(Filterable):
             rv = list()
         return ctx_return(rv, n, as_list)
 
-    def remove(self, filt):
+    def remove(self, filt=FILTER_ALL):
         """
         Remove items matching a Filter. Return list of the removed items.
         """
+        if filt is FILTER_ALL:
+            rv = list(self.stack)
+            self.stack.clear()
+            return rv
         remove, keep = [], []
         for item in self.stack:
             if filt.accepts(item):
@@ -150,6 +154,9 @@ class Pile(Filterable):
 
     def extend(self, lst):
         self.stack.extend(lst)
+
+    def clear(self):
+        self.stack.clear()
 
     def get(self, idx):
         return self.stack[idx]
