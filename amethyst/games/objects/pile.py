@@ -27,6 +27,7 @@ def ctx_return(lst, n, as_list):
     return lst[0] if lst else None
 
 
+STACK_ALLOWED = (list, collections.deque)
 class Pile(Filterable):
     """
     A pile of anything, draw pile, discard pile, player hand, stack of
@@ -37,7 +38,12 @@ class Pile(Filterable):
     :ivar stack: The actual stack of items. Defaults to a list, but you
     may pass an initial deque if you need that sort of access.
     """
-    stack = Attr(isa=(list, collections.deque), default=list)
+    stack = Attr(isa=STACK_ALLOWED, default=list)
+
+    def __init__(self, *args, **kwargs):
+        if len(args) == 1 and isinstance(args[0], STACK_ALLOWED):
+            kwargs['stack'] = args.pop()
+        super().__init__(*args, **kwargs)
 
     def __len__(self):
         return len(self.stack)
