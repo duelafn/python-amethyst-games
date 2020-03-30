@@ -64,13 +64,6 @@ class Turns(EnginePlugin):
 
         Start the next turn.
 
-        By default follows the order:
-
-            'setup-0': 0, 1, ... N    # depending on setup_rounds attribute
-            'setup-1': N, N-1, ... 0  # depending on setup_rounds attribute
-            0: 0, 1, ... N
-            1: 0, 1, ... N
-
         Play direction can be controlled by passing the `step` paramter
         (typically 1 or -1).
 
@@ -82,6 +75,27 @@ class Turns(EnginePlugin):
         automatic round calculation. Setting the round to a numeric value
         bypasses round calculation for the current method call, but future
         calls may auto-increment the round.
+
+        `setup_rounds` examples:
+
+        * Default sequence of round and player_num:
+
+            0: 0, 1, ... N
+            1: 0, 1, ... N
+
+        * Two setup rounds using `setup_rounds=2`
+
+            'setup-0': 0, 1, ... N
+            'setup-1': 0, 1, ... N
+            0: 0, 1, ... N
+            1: 0, 1, ... N
+
+        * Switchback start using `setup_rounds=(1,-1)`
+
+            'setup-0': 0, 1, ... N
+            'setup-1': N, N-1, ... 0
+            0: 0, 1, ... N
+            1: 0, 1, ... N
         """
         num_players = len(engine.players)
 
