@@ -10,4 +10,5 @@ from .engine import *    # noqa: F403
 from .filters import *   # noqa: F403
 from .notice import *    # noqa: F403
 from .plugin import *    # noqa: F403
+from .plugins import *   # noqa: F403
 from .util import *      # noqa: F403

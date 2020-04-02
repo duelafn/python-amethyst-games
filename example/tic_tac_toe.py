@@ -103,7 +103,7 @@ class TicTacToe(EnginePlugin):
         """
         game.commit()
         game.turn_start()
-        game.grant(game.turn_player(), Grant(name="place"))
+        game.grant(game.turn_player_num(), Grant(name="place"))
 
     def is_valid_placement(self, game, x, y):
         return game.board[y][x] is None
@@ -120,8 +120,8 @@ class TicTacToe(EnginePlugin):
         """
         Place action: Mark square with player number and grant end of turn action.
         """
-        game.board[y][x] = game.turn_player()
-        game.grant(game.turn_player(), Grant(name="end_turn"))
+        game.board[y][x] = game.turn_player_num()
+        game.grant(game.turn_player_num(), Grant(name="end_turn"))
 
     @place.check
     def place(self, game, stash, x, y):
@@ -154,6 +154,9 @@ class TTTInterface(Object):
     engine = Attr(default=lambda: TTT_Engine(client=True))
     player = Attr(int)
 
+    def handle(self):
+        self.engine.process_queue()
+
     def print_board(self):
         """
         Print the current board state to screen.
@@ -180,6 +183,7 @@ class TTTTT(TTTInterface):
         requested action.
         """
         # Ask player what they want to do
+        super().handle()
         print("")
         self.print_board()
         print("")
@@ -233,6 +237,7 @@ class DumbAI(TTTInterface):
         """
         Choose an action from available grants and do it.
         """
+        super().handle()
         grants = self.engine.list_grants(self.player)
         if not grants:
             raise Exception("AI player has no possible move!")
@@ -270,13 +275,21 @@ def MAIN1(argv):
     game.call_immediate("begin")
 
     while True:
+        game.process_queue()
         # Get player action and pass it to the game
-        player = players[ game.turn_player() ]
+        player = players[ game.turn_player_num() ]
         args   = player.handle()
         if args:
             game.trigger(player.player, *args)
-            game.process_queue()
 
+# Simulate network pass-through
+def dispatcher(engine, func):
+    # In a real network app, the event will be serialized by the server,
+    # transmitted, then deserialized on the client. That is what we do here.
+    def caller(game, *args):
+        a = engine.loads(game.dumps(args))
+        func(engine, *a)
+    return caller
 
 # Main app 2 - client/server example
 #
@@ -314,24 +327,24 @@ def MAIN2(argv):
 
         # Register to receive event notifications. For a newtwork game, you
         # would need a custom observer which sends the message over the
-        # network, here we attach the player dispatcher straight to the
-        # server notification stream.
-        server.observe(p.player, p.engine.dispatch_event) # Game state observer
-        server.observe(p.player, p.on_event)              # Auxiliary observer (prints to terminal)
+        # network, here we we just round-trip through json output.
+        server.observe(p.player, dispatcher(p.engine, p.engine.dispatch)) # Game state observer
+        server.observe(p.player, dispatcher(p.engine, p.on_event))        # Auxiliary observer (prints to terminal)
 
     # Start the game!
     server.call_immediate("begin")
 
     while True:
+        server.process_queue()
         # Request an action from the current player
-        player = players[ server.turn_player() ]
+        player = players[ server.turn_player_num() ]
         request = player.handle()
 
         # Pass the request to the server to execute it (if the request
         # succeeds, the server will send notices to clients).
         if request:
-            id, kwargs = server.loads(player.engine.dumps(request))
-            server.trigger(player.player, id, kwargs)
+            id_, kwargs = server.loads(player.engine.dumps(request))
+            server.trigger(player.player, id_, kwargs)
 
 
 if __name__ == '__main__':

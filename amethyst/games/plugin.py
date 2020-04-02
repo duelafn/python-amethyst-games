@@ -24,11 +24,11 @@ class event_listener(object):
 
     When an EnginePlugin method is decorated with thie class, the plugin
     will automatically register it with the engine so that any events of
-    the requested type which are sent to the engine `.dispatch_event()`
-    method will be sent to the decorated method.
+    the requested type which are sent to the engine `.dispatch()` method
+    will be sent to the decorated method.
 
-    The notice sequence number is verified by dispatch_event, so plugins
-    need not verify the sequence in their methods.
+    The notice sequence number is verified by dispatch, so plugins need not
+    verify the sequence in their methods.
 
     Create a listener for a specific call type (recommended):
 
@@ -43,21 +43,20 @@ class event_listener(object):
             ...
     """
     def __init__(self, what):
-        self.obj = self.cb = self.type = None
+        self.cb = self.type = None
         self.seq = 0
         if callable(what):
             self.cb = what
+            self.name = self.cb.__name__
         else:
             self.type = what
 
-    def __get__(self, obj, objtype):
-        self.obj = obj
-
     def __call__(self, *args):
         if self.cb:
-            return self.cb(self.obj, *args)
+            return self.cb(*args)
 
         self.cb = args[0]
+        self.name = self.cb.__name__
         return self
 
 
@@ -184,19 +183,27 @@ class action(object):
 #         self.cb['undo'] = func
 #         return self
 #
-#     def client_action(self, func):
-#         self.cb['client_action'] = func
+#     def client(self, func):
+#         """
+#         If defined, called in lieu of the main action function when a game
+#         is running in client mode.
+#         """
+#         self.cb['client'] = func
 #         return self
 
 
 class PluginMetaclass(amethyst.core.obj.AttrsMetaclass):
     def __new__(cls, class_name, bases, attrs):
         actions = dict()
+        listeners = []
         for val in attrs.values():
             if isinstance(val, action):
                 actions[val.name] = val
+            if isinstance(val, event_listener):
+                listeners.append(val)
         new_cls = super(PluginMetaclass,cls).__new__(cls, class_name, bases, attrs)
         new_cls._actions = actions
+        new_cls._listeners = listeners
         return new_cls
 
 BasePlugin = PluginMetaclass(str('BasePlugin'), (), {})
@@ -255,18 +262,19 @@ class EnginePlugin(Object, BasePlugin):
     def make_immutable(self):
         self.amethyst_make_immutable()
 
+    def _listener_callback(self, listener):
+        def cb(*args):
+            listener(self, *args)
+        cb.__name__ = listener.name
+        return cb
+    def on_assign_to_game(self, game):
+        for listener in self._listeners:
+            game.register_event_listener(listener.type, self._listener_callback(listener))
+
     def initialize_early(self, game, attrs=None):
         pass
 
     def initialize(self, game, attrs=None):
-        for name in dir(self):
-            attr = getattr(self, name)
-            if isinstance(attr, event_listener):
-                game.register_event_listener(attr.type, attr)
-#             if hasattr(attr, "event_listener"):
-#                 game.register_event_listener(attr.event_listener, attr)
-#                 print(attr.event_listener, "->", name)
-
         if attrs is not None:
             self.load_data(attrs, verifyclass=False)
 

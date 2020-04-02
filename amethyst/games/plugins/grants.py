@@ -134,9 +134,15 @@ class GrantManager(EnginePlugin):
                 self.grants[p][a.id] = a
 
     def grant(self, game, players, actions):
+        """Process a grant Notice AS the server."""
         if game.is_server():
             self._grant(game, players, actions)
         return self
+    @event_listener(NoticeType.GRANT)
+    def server_grant_notice(self, game, seq, player, notice):
+        """Process a grant Notice FROM the server."""
+        if game.is_client():
+            self._grant(game, notice.data.get('players'), notice.data.get('actions'))
 
     def _expire(self, game, filters):
         if not filters:
@@ -158,14 +164,8 @@ class GrantManager(EnginePlugin):
         self._expire(game, filters)
         return self
 
-    @event_listener(NoticeType.GRANT)
-    def server_grant_notice(self, game, seq, player, notice):
-        """Process a grant Notice from the server."""
-        if game.is_client():
-            self._grant(game, notice.data.get('players'), notice.data.get('actions'))
-
     @event_listener(NoticeType.EXPIRE)
-    def server_expire_notice(self, game, notice):
+    def server_expire_notice(self, game, seq, player, notice):
         """Process an expire Notice from the server."""
         if game.is_client():
             self._expire(game, notice.data.get('filters'))

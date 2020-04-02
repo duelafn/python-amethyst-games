@@ -29,14 +29,11 @@ class Engine(AmethystWriteLocker, Object):
     """
     Engine
 
-    :ivar plugins: list of plugin `Object`s.
-
     :ivar players: list of players. String or integer identifiers.
 
     :ivar undoable: Number of undoable actions.
     """
     players  = Attr(isa=list, default=list)
-    plugins  = Attr(isa=list, default=list)
     undoable = Attr(isa=int,  default=0)
     # Private attributes:
     #   _client_mode:  bool: True when running in client mode
@@ -44,19 +41,23 @@ class Engine(AmethystWriteLocker, Object):
     #   initialization_data: dict: cached initialization data
     #   journal:       list: tuple(action, kwargs)
     #   notified:      dict: PLAYER => [ [ COUNTER, CALLBACK ], ... ]
-    #   player          str: if non Null, may be used as default player id in some methods
     #   plugin_names:   set: cached list of plugin names as strings (for dependency checking)
+    #   plugins        lsit: plugin Objects
 
     def __init__(self, *args, **kwargs):
         client = kwargs.pop("client", False)
+        self.plugins = []
         super(Engine,self).__init__(*args, **kwargs)
 
         self._client_mode = client
         self._client_seq = 0
-        self._event_dispatch = { NoticeType.CALL: [ self.call_event_listener ] }
+        self._event_dispatch = {
+            NoticeType.CALL: [
+                lambda game, seq, player, notice: self.call_immediate(notice.name, notice.data),
+            ]
+        }
         self.journal = [ ]
         self.notified = dict()
-        self.player = kwargs.pop("player", None)
         self.plugin_names = set()
 
         self._queue = queue.Queue()
@@ -77,6 +78,8 @@ class Engine(AmethystWriteLocker, Object):
                     self.call_immediate(*args, **kwargs)
                 elif typ == 'notify':
                     self.notify_immediate(*args, **kwargs)
+                elif typ == 'dispatch':
+                    self.dispatch_immediate(*args, **kwargs)
                 elif typ == 'exit':
                     return False
                 else:
@@ -327,6 +330,9 @@ class Engine(AmethystWriteLocker, Object):
                 raise PluginCompatibilityException("Engine already has a method '{}' (attempted override by {})".format(meth, name))
             self._register_method(meth, getattr(plugin, attr))
 
+        plugin.on_assign_to_game(self)
+
+
     def _register_method(self, name, callback):
         """Method exists just to make closure work"""
         setattr(
@@ -403,15 +409,16 @@ class Engine(AmethystWriteLocker, Object):
     def loads(self, data):
         return json.loads(data, object_hook=self.JSONObjectHook)
 
-    def call_event_listener(self, game, seq, player, notice):
-        self.schedule(notice.name, notice.data)
-
     def register_event_listener(self, type, listener):
         if type not in self._event_dispatch:
             self._event_dispatch[type] = []
         self._event_dispatch[type].append(listener)
 
-    def dispatch_event(self, game, seq, player, notice):
+    def dispatch(self, game, seq, player, notice):
+        self._queue.put(('dispatch', [game, seq, player, notice], {}))
+        return self
+
+    def dispatch_immediate(self, game, seq, player, notice):
         """
         Responds to standard engine-related notifications. Client engines
         should attach this method via `.observe()` in order to keep the
