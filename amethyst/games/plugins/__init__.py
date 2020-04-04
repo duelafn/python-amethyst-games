@@ -5,4 +5,5 @@
 # SPDX-License-Identifier: LGPL-3.0
 
 from .grants       import *   # noqa: F403
+from .object_store import *   # noqa: F403
 from .turns        import *   # noqa: F403
