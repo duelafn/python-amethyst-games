@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: LGPL-3.0
 __all__ = '''
 
-ADMIN
+GAME_MASTER
 NOBODY
 
 nonce
@@ -30,7 +30,7 @@ from amethyst.core import cached_property
 
 random = SystemRandom()
 
-ADMIN = {}
+GAME_MASTER = {}
 NOBODY = None
 
 class AmethystGameException(Exception): pass
