@@ -167,22 +167,22 @@ class action(object):
         self.cb['after'] = func
         return self
 
-#     def keep(self, func):
-#         """
-#         Called after all action callbacks and before/after callbacks
-#         succeed. Failure here is ignored.
-#         """
-#         self.cb['keep'] = func
-#         return self
-#
-#     def undo(self, func):
-#         """
-#         Called if any action callbacks and before/after callbacks raise an
-#         exception. Failure here is ignored.
-#         """
-#         self.cb['undo'] = func
-#         return self
-#
+    def keep(self, func):
+        """
+        Called after all action callbacks and before/after callbacks
+        succeed. Failure here is ignored.
+        """
+        self.cb['keep'] = func
+        return self
+
+    def error(self, func):
+        """
+        Called if any action callbacks and before/after callbacks raise an
+        exception. Failure here is ignored.
+        """
+        self.cb['error'] = func
+        return self
+
 #     def client(self, func):
 #         """
 #         If defined, called in lieu of the main action function when a game

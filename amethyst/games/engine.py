@@ -10,6 +10,7 @@ import copy
 import json
 import queue
 import threading
+import warnings
 
 from amethyst.core import Object, Attr, cached_property
 
@@ -41,7 +42,7 @@ class Engine(AmethystWriteLocker, Object):
     #   initialization_data: dict: cached initialization data
     #   journal:       list: tuple(action, kwargs)
     #   notified:      dict: PLAYER => [ [ COUNTER, CALLBACK ], ... ]
-    #   plugin_names:   set: cached list of plugin names as strings (for dependency checking)
+    #   plugin_names:   set: set of plugin names for dependency resolution
     #   plugins        lsit: plugin Objects
 
     def __init__(self, *args, **kwargs):
@@ -166,7 +167,7 @@ class Engine(AmethystWriteLocker, Object):
         - action   : action phase
         - after
         - keep     : called after after only if no callbacks raised an exception
-        - undo     : called after after only if any callback raises an exception
+        - error    : called after after only if any callback raises an exception
         - notify   :
 
         .. note:: Technically, the immutability flag is only advisory, but
@@ -208,20 +209,37 @@ class Engine(AmethystWriteLocker, Object):
 
         """
         success = False
+        actions = []
+        if stash is None:
+            stash = dict()
+        if kwargs is None:
+            kwargs=dict()
         try:
-            if kwargs is None:
-                kwargs=dict()
             actions = self._get_actions(name)
             if not actions:
                 raise UnknownActionException("No such action '{}'".format(name))
 
-            if stash is None:
-                stash = dict()
             for action, plugin in actions:
                 if action.call("check", plugin, self, stash, **kwargs) is False:
                     return False
             for action, plugin in actions:
                 action.call("init", plugin, self, stash, **kwargs)
+
+            with self.write_lock():
+                # Save game state for UNDO and roll-back
+                self.journal.append( (name, kwargs, stash) )
+                self.undoable += 1
+
+                # Execute the action
+                for action, plugin in actions:
+                    action.call('before', plugin, self, stash, **kwargs)
+                for action, plugin in actions:
+                    action.call('action', plugin, self, stash, **kwargs)
+                for action, plugin in actions:
+                    action.call('after', plugin, self, stash, **kwargs)
+
+                # TODO: Undoable actions
+                self.commit()
 
             # If anyone wants to be notified, send them notification information.
             for player in self.notified:
@@ -233,33 +251,35 @@ class Engine(AmethystWriteLocker, Object):
                 if p_kwargs is not None:
                     self.notify(player, Notice(name=name, type=NoticeType.CALL, data=p_kwargs))
 
-            with self.write_lock():
-                # Save game state for UNDO and roll-back
-                self.journal.append( (name, kwargs, stash) )
-                self.undoable += 1
-
-                # Execute the action, all the fun happens here
-                for stage in ('before', 'action', 'after'):
-                    for action, plugin in actions:
-                        action.call(stage, plugin, self, stash, **kwargs)
-
-                # TODO: Undoable actions
-                self.commit()
-
             success = True
             return success
 
         finally:
-            if success and callable(on_success):
-                try:
-                    on_success()
-                except Exception:
-                    pass
-            elif not success and callable(on_failure):
-                try:
-                    on_failure()
-                except Exception:
-                    pass
+            if success:
+                for action, plugin in actions:
+                    try:
+                        action.call('keep', plugin, self, stash, **kwargs)
+                    except Exception as err:
+                        warnings.warn(f"Error executing {name}.keep action: {err}")
+                if callable(on_success):
+                    try:
+                        on_success()
+                    except Exception as err:
+                        warnings.warn(f"Error executing on_success() callback: {err}")
+
+            else:
+                for action, plugin in actions:
+                    try:
+                        action.call('error', plugin, self, stash, **kwargs)
+                    except Exception as err:
+                        warnings.warn(f"Error executing {name}.keep action: {err}")
+
+                if callable(on_failure):
+                    try:
+                        on_failure()
+                    except Exception:
+                        warnings.warn(f"Error executing on_failure() callback: {err}")
+
 
     def observe(self, player, cb):
         """
@@ -307,11 +327,17 @@ class Engine(AmethystWriteLocker, Object):
         if n < self.undoable:
             self.undoable = n
 
-    def register_plugin(self, plugin):
+    def has_plugin(self, plugin):
+        if isinstance(plugin, type):
+            plugin = plugin.__name__
+        return plugin in self.plugin
+
+    def register_plugin(self, plugin, name=None):
         """
         Register a plugin instance. Merges engine methods and plugin actions.
         """
-        name = plugin.__class__.__name__
+        if name is None:
+            name = plugin.__class__.__name__
         self.plugins.append(plugin)
         self.plugin_names.add(name)
 
