@@ -14,11 +14,11 @@ import warnings
 
 from amethyst.core import Object, Attr, cached_property
 
-from .notice import Notice, NoticeType
-from .util import UnknownActionException, PluginCompatibilityException, NotificationSequenceException
-from .util import AmethystWriteLocker
-from .util import tupley
-from .util import random
+from amethyst.games.notice import Notice, NoticeType
+from amethyst.games.util import AmethystWriteLocker
+from amethyst.games.util import UnknownActionException, PluginCompatibilityException, NotificationSequenceException
+from amethyst.games.util import random
+from amethyst.games.util import tupley
 
 NoticeType.register(CALL=":call")
 NoticeType.register(INIT=":init")

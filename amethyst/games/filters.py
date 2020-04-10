@@ -16,7 +16,7 @@ Filterable
 
 from amethyst.core import Object, Attr
 
-from .util import nonce, tupley
+from amethyst.games.util import nonce, tupley
 
 
 

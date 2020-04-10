@@ -7,7 +7,7 @@ __all__ = 'Notice NoticeType'.split()
 
 from amethyst.core import Object, Attr
 
-from .util import AmethystGameException
+from amethyst.games.util import AmethystGameException
 
 class NoticeType(object):
     _tokens = dict()
