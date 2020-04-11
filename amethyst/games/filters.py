@@ -10,7 +10,8 @@ IFilter
    Filter
    FILTER_ALL
 
-Filterable
+IFilterable
+   Filterable
 
 """.split()
 
@@ -162,10 +163,38 @@ class Filter(IFilter):
             return False
         raise TypeError("Not Implemented")
 
-class Filterable(Object):
-    id = Attr(isa=str, default=nonce)
-    name = Attr(isa=str)
-    flags = Attr(isa=set, default=set)
+
+class IFilterable(object):
+    """
+    Filterable interface.
+
+    The following attributes are defined by this interface but are not
+    given default implementations.
+
+    :ivar str id: Stable, globally unique identifier. Should not be None.
+
+    :ivar str name: Object name, not assumed to be unique. May be None.
+
+    :ivar set flags: Arbitrary set of flags or tags describing the
+    filterable. The core amethyst libraries should accept a frozenset
+    almost everywhere. The core amethyst libraries will typically accept a
+    list or tuple value, though possibly with reduced performance.
+    """
+    @property
+    def id(self):
+        raise Exception("Not Implemented")
+    @property
+    def name(self):
+        raise Exception("Not Implemented")
+    @property
+    def flags(self):
+        raise Exception("Not Implemented")
+
+
+class Filterable(IFilterable, Object):
+    id = Attr(isa=str, default=nonce, OVERRIDE=True)
+    name = Attr(isa=str, OVERRIDE=True)
+    flags = Attr(isa=set, default=set, OVERRIDE=True)
 
     def __init__(self, *args, **kwargs):
         super(Filterable,self).__init__(*args, **kwargs)
