@@ -31,6 +31,10 @@ class BaseGame(amethyst.games.EnginePlugin):
 
     @action
     def test_param(self, game, stash, test=None, param='something', msg=None):
+        """
+        Verify that trigger() parameter passing works. Call once to perform the
+        grant, then trigger the grant passing a test and param='foo'.
+        """
         if test:
             test.counter += 1
             test.assertEqual(param, 'foo', msg=msg)
@@ -39,6 +43,10 @@ class BaseGame(amethyst.games.EnginePlugin):
 
     @action
     def test_pass_none(self, game, stash, test=None, param='something', msg=None):
+        """
+        Verify that trigger() parameter can pass None. Call once to perform the
+        grant, then trigger the grant passing a test and param=None.
+        """
         if test:
             test.counter += 1
             test.assertIsNone(param, msg=msg)
@@ -47,6 +55,10 @@ class BaseGame(amethyst.games.EnginePlugin):
 
     @action
     def test_masking(self, game, stash, test=None, param='something', msg=None):
+        """
+        Verify that trigger() parameter masking works. Call once to perform the
+        grant, then trigger the grant passing a test and an option non-None param.
+        """
         if test:
             test.counter += 1
             test.assertIsNone(param, msg=msg)
@@ -98,6 +110,12 @@ class MyTest(unittest.TestCase):
         grant = self.assertOneGrant()
         with self.assertRunsTests(1):
             game.trigger(0, grant.id, dict(test=self, param='foo'))
+        self.assertNoGrants()
+
+        game.call_immediate("test_masking")
+        grant = self.assertOneGrant()
+        with self.assertRunsTests(1):
+            game.trigger(0, grant.id, dict(test=self)) # Also masks the default
         self.assertNoGrants()
 
         game.call_immediate("test_pass_none")
