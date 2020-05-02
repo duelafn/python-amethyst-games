@@ -4,12 +4,20 @@
 
 import unittest
 
-from amethyst.games import Engine
+from amethyst.games import Engine, NoticeType
+from amethyst.games.util import AmethystGameException
 
 class MyTest(unittest.TestCase):
 
     def test_stupid(self):
         engine = Engine()
+
+    def test_NoticeType(self):
+        # Should not be an error:
+        NoticeType.register(GRANT=NoticeType.GRANT)
+
+        with self.assertRaisesRegex(AmethystGameException, 'already registered'):
+            NoticeType.register(GRANT="FOO")
 
 
 if __name__ == '__main__':

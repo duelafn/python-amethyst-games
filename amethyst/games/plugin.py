@@ -15,7 +15,7 @@ import copy
 import amethyst.core.obj
 from amethyst.core import Object, Attr, cached_property
 
-from amethyst.games.util import PluginCompatibilityException
+from amethyst.games.util import PluginCompatibilityException, nonce
 
 
 class event_listener(object):
@@ -206,6 +206,7 @@ class PluginMetaclass(amethyst.core.obj.AttrsMetaclass):
         new_cls._listeners = listeners
         return new_cls
 
+
 BasePlugin = PluginMetaclass(str('BasePlugin'), (), {})
 
 
@@ -245,6 +246,7 @@ class EnginePlugin(Object, BasePlugin):
     # server plugin version is compatible with the client plugin version.
     AMETHYST_PLUGIN_COMPAT  = None
     compat = Attr(float)
+    id = Attr(isa=str, default=nonce)
 
     def __init__(self, *args, **kwargs):
         self.amethyst_method_prefix = kwargs.pop("amethyst_method_prefix", self.AMETHYST_ENGINE_DEFAULT_METHOD_PREFIX)
@@ -290,11 +292,3 @@ class EnginePlugin(Object, BasePlugin):
 
     def set_state(self, state):
         self.set(**state)
-
-
-
-def event_listener1(typ):
-    def decorate(meth):
-        meth.event_listener = typ
-        return meth
-    return decorate

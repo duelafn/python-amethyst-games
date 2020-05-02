@@ -66,7 +66,7 @@ class BaseGame(amethyst.games.EnginePlugin):
             game.Grant(name="test_masking", kwargs=dict(param=None))
 
 
-class TestCounts(object):
+class WrapCounts(object):
     def __init__(self, test, num):
         self.test = test
         self.num = num
@@ -83,7 +83,7 @@ class MyTest(unittest.TestCase):
         self.counter = 0
 
     def assertRunsTests(self, num):
-        return TestCounts(self, num)
+        return WrapCounts(self, num)
 
     def assertOneGrant(self):
         self.game.process_queue()

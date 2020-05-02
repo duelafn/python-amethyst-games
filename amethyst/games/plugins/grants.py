@@ -16,8 +16,8 @@ from amethyst.games.plugin  import EnginePlugin, event_listener
 from amethyst.games.util    import tupley
 from amethyst.games.filters import Filterable, FILTER_ALL
 
-NoticeType.register(GRANT=":grant")
-NoticeType.register(EXPIRE=":expire")
+NoticeType.register(GRANT="::grant")
+NoticeType.register(EXPIRE="::expire")
 
 
 class Grant(Filterable):
@@ -75,7 +75,7 @@ class Call(Filterable):
 
 class GrantManager(EnginePlugin):
     """
-    :ivar grants: Currently active grants. dict: PLAYER_ID => list(GRANTS)
+    :ivar grants: Currently active grants. dict: PLAYER_NUM => list(GRANTS)
     """
     AMETHYST_PLUGIN_COMPAT  = 1
     AMETHYST_ENGINE_METHODS = """
@@ -88,7 +88,7 @@ class GrantManager(EnginePlugin):
 
     grants = Attr(isa=dict, default=dict)
 
-    def trigger(self, game, player, id, kwargs):
+    def trigger(self, game, player_num, id, kwargs):
         """
         Player interface to actions
 
@@ -104,7 +104,7 @@ class GrantManager(EnginePlugin):
         grant may also be flagged as repeatable in which case it will not
         be consumed even if successful).
         """
-        grant = self.find_grant(game, player, id)
+        grant = self.find_grant(game, player_num, id)
         if not grant:
             return False
 
@@ -125,29 +125,35 @@ class GrantManager(EnginePlugin):
             return True
         return False
 
-    def _grant(self, game, players, actions):
-        for p in tupley(players):
-            game.notify(p, Notice(type=NoticeType.GRANT, data=dict(players=p, actions=actions)) )
+    def _grant(self, game, player_nums, actions):
+        for p in tupley(player_nums):
             if p not in self.grants:
                 self.grants[p] = dict()
             for a in tupley(actions):
                 self.grants[p][a.id] = a
+        game.notify(None, Notice(
+            source=self.id, type=NoticeType.GRANT,
+            data=dict(player_nums=player_nums, actions=actions),
+        ))
 
-    def grant(self, game, players, actions):
+    def grant(self, game, player_nums, actions):
         """Process a grant Notice AS the server."""
         if game.is_server():
-            self._grant(game, players, actions)
+            self._grant(game, player_nums, actions)
         return self
     @event_listener(NoticeType.GRANT)
-    def server_grant_notice(self, game, seq, player, notice):
+    def on_grant(self, game, seq, player_num, notice):
         """Process a grant Notice FROM the server."""
-        if game.is_client():
-            self._grant(game, notice.data.get('players'), notice.data.get('actions'))
+        if game.is_client() and notice.source == self.id:
+            self._grant(game, notice.data.get('player_nums'), notice.data.get('actions'))
 
     def _expire(self, game, filters):
         if not filters:
             return
-        game.notify(game.players, Notice(type=NoticeType.EXPIRE, data={ 'filters': filters }))
+        game.notify(None, Notice(
+            source=self.id, type=NoticeType.EXPIRE,
+            data={ 'filters': filters },
+        ))
         for filt in tupley(filters):
             # Optimization for a common case
             if filt is FILTER_ALL:
@@ -163,32 +169,31 @@ class GrantManager(EnginePlugin):
     def expire(self, game, filters=FILTER_ALL):
         self._expire(game, filters)
         return self
-
     @event_listener(NoticeType.EXPIRE)
-    def server_expire_notice(self, game, seq, player, notice):
+    def on_expire(self, game, seq, player_num, notice):
         """Process an expire Notice from the server."""
-        if game.is_client():
+        if game.is_client() and notice.source == self.id:
             self._expire(game, notice.data.get('filters'))
 
-    def find_grant(self, game, player, id):
+    def find_grant(self, game, player_num, id):
         """
         Find a player grant by id and returns it, else returns `None`.
         """
-        if player in self.grants:
-            if id in self.grants[player]:
-                a = self.grants[player][id]
+        if player_num in self.grants:
+            if id in self.grants[player_num]:
+                a = self.grants[player_num][id]
                 if isinstance(a, Grant):
                     return a
         return None
 
-    def list_grants(self, game, player, filt=FILTER_ALL):
+    def list_grants(self, game, player_num, filt=FILTER_ALL):
         """
         Return a tuple of player grants matching the requested filter (default all grants).
         """
-        if player not in self.grants:
+        if player_num not in self.grants:
             return ()
 
         if filt is FILTER_ALL:
-            return tuple(self.grants[player].values())
+            return tuple(self.grants[player_num].values())
         else:
-            return tuple(a for a in self.grants[player].values() if filt.accepts(a))
+            return tuple(a for a in self.grants[player_num].values() if filt.accepts(a))

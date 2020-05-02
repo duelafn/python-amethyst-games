@@ -1,3 +1,6 @@
+
+/_coverage
+
 # Python Ignores
 *.egg
 *.egg-info

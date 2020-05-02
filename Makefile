@@ -39,7 +39,7 @@ sdist: test
 	python3 setup.py sdist
 
 test:
-	AMETHEST_TEST_ALL=1 python3 -E -B -m nose --with-coverage --verbosity=0 --cover-package=amethyst.games tests
+	python3 -m pytest --cov=amethyst/ --cov-branch --cov-report=html:_coverage tests example
 
 zip: test
 	python3 setup.py sdist --format=zip

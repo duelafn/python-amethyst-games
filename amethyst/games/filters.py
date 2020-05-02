@@ -17,7 +17,7 @@ IFilterable
 
 from amethyst.core import Object, Attr
 
-from amethyst.games.util import nonce, tupley
+from amethyst.games.util import nonce
 
 
 
@@ -55,7 +55,10 @@ class IFilter(Object):
 class ClsFilterAll(IFilter):
     def accepts(self, obj):
         return True
+
+
 FILTER_ALL = ClsFilterAll()
+
 
 class BinOpFilter(IFilter):
     left = Attr()

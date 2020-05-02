@@ -215,7 +215,7 @@ class TTTTT(TTTInterface):
                     print("Invalid placement (already occupied)")
                     return None
             except ValueError as err:
-                print("Could not parse coordinate")
+                print("Could not parse coordinate: {}".format(err))
                 return None
 
         # Our wrapper will interpret a None result as a noop (see below),

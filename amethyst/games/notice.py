@@ -14,9 +14,6 @@ class NoticeType(object):
 
     @classmethod
     def register(self, **kwargs):
-#         import sys, traceback
-#         traceback.print_stack()
-#         sys.stderr.write("FOO " + str([ f for f in dir(self) if not f.startswith("_")]) + " " + str(kwargs) + "\n")
         for key, token in kwargs.items():
             if hasattr(self, key):
                 if token == getattr(self, key):
@@ -32,6 +29,7 @@ class NoticeType(object):
 
 class Notice(Object):
     name = Attr(isa=str)
+    source = Attr(isa=str)
     type = Attr(isa=str, builder=lambda: "notice")
     data = Attr(isa=dict)
 

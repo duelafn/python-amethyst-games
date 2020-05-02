@@ -32,7 +32,15 @@ class TestFilters(unittest.TestCase):
         self.assertTrue(f.accepts(foo))
         self.assertFalse(f.accepts(bar))
 
+        f = ~f
+        self.assertFalse(f.accepts(foo))
+        self.assertTrue(f.accepts(bar))
+
         f = Filter(id=foo.id) | Filter(name="Bar")
+        self.assertTrue(f.accepts(foo))
+        self.assertTrue(f.accepts(bar))
+
+        f = Filter(any=[Filter(id=foo.id), Filter(name="Bar")])
         self.assertTrue(f.accepts(foo))
         self.assertTrue(f.accepts(bar))
 

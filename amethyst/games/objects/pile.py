@@ -10,7 +10,7 @@ Pile
 import collections
 import itertools
 
-from amethyst.core import Attr, Object
+from amethyst.core import Attr
 
 from amethyst.games.filters import Filterable, FILTER_ALL
 from amethyst.games.util import random
@@ -53,7 +53,7 @@ class Pile(Filterable):
         return self.stack.__iter__()
     def __reversed__(self):
         return self.stack.__reversed__()
-    def __contains__(self, needls):
+    def __contains__(self, needle):
         return needle in self.stack
 
     def pick(self, n=1, as_list=None):
@@ -72,7 +72,7 @@ class Pile(Filterable):
             tmp = list(self.stack)
             while _n > 0 and tmp:
                 _n -= 1
-                rv.append(tmp.pop( random.randint(0, len(rmp)-1) ))
+                rv.append(tmp.pop( random.randint(0, len(tmp)-1) ))
             self.stack.clear()
             self.stack.extend(tmp)
         else:
@@ -127,10 +127,10 @@ class Pile(Filterable):
         """
         if n is None: n = len(self.stack)
         if self.stack:
-            l = len(self.stack)
-            k = min(l, n)
+            j = len(self.stack)
+            k = min(j, n)
             # Use itertools so we work on both list() and deque()
-            rv = list(itertools.islice(self.stack, l - k, l))
+            rv = list(itertools.islice(self.stack, j - k, j))
         else:
             rv = list()
         return ctx_return(rv, n, as_list)

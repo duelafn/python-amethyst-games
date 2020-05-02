@@ -5,11 +5,9 @@
 # SPDX-License-Identifier: LGPL-3.0
 __all__ = 'Engine'.split()
 
-import collections
 import copy
 import json
 import queue
-import threading
 import warnings
 
 from amethyst.core import Object, Attr, cached_property
@@ -20,8 +18,8 @@ from amethyst.games.util import UnknownActionException, PluginCompatibilityExcep
 from amethyst.games.util import random
 from amethyst.games.util import tupley
 
-NoticeType.register(CALL=":call")
-NoticeType.register(INIT=":init")
+NoticeType.register(CALL="::call")
+NoticeType.register(INIT="::init")
 
 ENGINE_CALL_ORDER = "before action after".split()
 ENGINE_CALL_TYPES = ENGINE_CALL_ORDER + "check init notify undo".split()
@@ -54,7 +52,7 @@ class Engine(AmethystWriteLocker, Object):
         self._client_seq = 0
         self._event_dispatch = {
             NoticeType.CALL: [
-                lambda game, seq, player, notice: self.call_immediate(notice.name, notice.data),
+                lambda game, seq, player_num, notice: self.call_immediate(notice.name, notice.data),
             ]
         }
         self.journal = [ ]
@@ -103,7 +101,7 @@ class Engine(AmethystWriteLocker, Object):
 
     def schedule(self, name, args=None, **kwargs):
         if args is None:
-            args=dict()
+            args = dict()
         actions = self._get_actions(name)
         if not actions:
             raise UnknownActionException("No such action '{}'".format(name))
@@ -194,12 +192,12 @@ class Engine(AmethystWriteLocker, Object):
         return a new or modified dict which will be sent as a notification
         to the player. Uses for this are to censor secret information or to
         include additional game state. The notify method has a different
-        signature, it takes a player id and kwargs are passed as a
+        signature, it takes a player number and kwargs are passed as a
         dictionary reference, a copy of the original arguments which may be
         returned modified:
 
             @myaction.notify
-            def myaction(self, engine, stash, player, kwargs):
+            def myaction(self, engine, stash, player_num, kwargs):
                 return kwargs  # customized for player
 
         .. todo:: 1.0: Automatic roll-back if an exception is raised in any
@@ -213,7 +211,7 @@ class Engine(AmethystWriteLocker, Object):
         if stash is None:
             stash = dict()
         if kwargs is None:
-            kwargs=dict()
+            kwargs = dict()
         try:
             actions = self._get_actions(name)
             if not actions:
@@ -242,14 +240,19 @@ class Engine(AmethystWriteLocker, Object):
                 self.commit()
 
             # If anyone wants to be notified, send them notification information.
-            for player in self.notified:
+            for player_num in self.notified:
                 p_kwargs = copy.deepcopy(kwargs)
                 for action, plugin in actions:
                     if "notify" in action:
                         if p_kwargs is not None:
-                            p_kwargs = action.call("notify", plugin, self, stash, player, p_kwargs)
+                            p_kwargs = action.call("notify", plugin, self, stash, player_num, p_kwargs)
                 if p_kwargs is not None:
-                    self.notify(player, Notice(name=name, type=NoticeType.CALL, data=p_kwargs))
+                    self.notify(player_num, Notice(
+                        name=name,
+                        source=('client' if self.is_client() else 'server'),
+                        type=NoticeType.CALL,
+                        data=p_kwargs,
+                    ))
 
             success = True
             return success
@@ -277,21 +280,21 @@ class Engine(AmethystWriteLocker, Object):
                 if callable(on_failure):
                     try:
                         on_failure()
-                    except Exception:
+                    except Exception as err:
                         warnings.warn(f"Error executing on_failure() callback: {err}")
 
 
-    def observe(self, player, cb):
+    def observe(self, player_num, cb):
         """
         Register a callback to receive all notifications for the given player.
 
         Callback should have the following signature:
 
-            def callback(engine, seq, player, notice):
+            def callback(engine, seq, player_num, notice):
 
         * `engine`: this engine object
         * `seq`: notification sequence number
-        * `player`: player id
+        * `player_num`: player number
         * `notice`: Notice object
 
         The sequence number is a per-callback, sequentially increasing
@@ -301,23 +304,29 @@ class Engine(AmethystWriteLocker, Object):
         the other end of that callback should track the sequence state and
         request a the full game state if an out-of-sequence id is received.
         """
-        if not player in self.notified:
-            self.notified[player] = []
-        self.notified[player].append([ 0, cb ])
+        if player_num not in self.notified:
+            self.notified[player_num] = []
+        self.notified[player_num].append([ 0, cb ])
 
-    def unobserve(self, player, cb):
+    def unobserve(self, player_num, cb):
         """
         Unregister a callback to receive all notifications for the given player.
 
         Callback must be the identical function or method passed to the
         `observe` method.
         """
-        if player in self.notified:
-            self.notified[player] = [ pair for pair in self.notified[player] if pair[1] is not cb ]
+        if player_num in self.notified:
+            self.notified[player_num] = [ pair for pair in self.notified[player_num] if pair[1] is not cb ]
 
-    def notify_immediate(self, player, notice):
-        """Send a notice to one or more players"""
-        for p in tupley(player):
+    def notify_immediate(self, player_nums, notice):
+        """
+        Send a notice to one or more players.
+
+        If player_nums is None, sends to all players.
+        """
+        if player_nums is None:
+            player_nums = tuple(self.notified.keys())
+        for p in tupley(player_nums):
             if p in self.notified:
                 for pair in self.notified[p]:
                     pair[0] += 1
@@ -406,9 +415,9 @@ class Engine(AmethystWriteLocker, Object):
         data["plugin_init"] = [ p.initialization_data for p in self.plugins ]
         return data
 
-    def get_state(self, player):
+    def get_state(self, player_num):
         d = copy.deepcopy(self.dict)
-        d['plugin_state'] = [ p.get_state(player) for p in tupley(d.pop('plugins', [])) ]
+        d['plugin_state'] = [ p.get_state(player_num) for p in tupley(d.pop('plugins', [])) ]
         return d
 
     def set_state(self, state):
@@ -440,11 +449,11 @@ class Engine(AmethystWriteLocker, Object):
             self._event_dispatch[type] = []
         self._event_dispatch[type].append(listener)
 
-    def dispatch(self, game, seq, player, notice):
-        self._queue.put(('dispatch', [game, seq, player, notice], {}))
+    def dispatch(self, game, seq, player_num, notice):
+        self._queue.put(('dispatch', [game, seq, player_num, notice], {}))
         return self
 
-    def dispatch_immediate(self, game, seq, player, notice):
+    def dispatch_immediate(self, game, seq, player_num, notice):
         """
         Responds to standard engine-related notifications. Client engines
         should attach this method via `.observe()` in order to keep the
@@ -460,8 +469,8 @@ class Engine(AmethystWriteLocker, Object):
 
         if notice.type in self._event_dispatch:
             for cb in self._event_dispatch[notice.type]:
-                cb(game, seq, player, notice)
+                cb(game, seq, player_num, notice)
 
         if None in self._event_dispatch:
             for cb in self._event_dispatch[None]:
-                cb(game, seq, player, notice)
+                cb(game, seq, player_num, notice)
