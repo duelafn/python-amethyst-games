@@ -154,7 +154,7 @@ class GrantManager(EnginePlugin):
             source=self.id, type=NoticeType.EXPIRE,
             data={ 'filters': filters },
         ))
-        for filt in tupley(filters):
+        for filt in filters:
             # Optimization for a common case
             if filt is FILTER_ALL:
                 self.grants = dict()
@@ -167,7 +167,8 @@ class GrantManager(EnginePlugin):
                     self.grants[p] = [ a for a in self.grants[p] if not filt.accepts(a) ]
 
     def expire(self, game, filters=FILTER_ALL):
-        self._expire(game, filters)
+        if filters is not None:
+            self._expire(game, tupley(filters))
         return self
     @event_listener(NoticeType.EXPIRE)
     def on_expire(self, game, seq, player_num, notice):
