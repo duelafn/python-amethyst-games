@@ -189,22 +189,25 @@ class Engine(AmethystWriteLocker, Object):
 
         After the action executes, a copy of the action arguments will be
         passed to `notify` callbacks once for each player. The method may
-        return a new or modified dict which will be sent as a notification
-        to the player. Uses for this are to censor secret information or to
-        include additional game state. The notify method has a different
-        signature, it takes a player number and kwargs are passed as a
-        dictionary reference, a copy of the original arguments which may be
-        returned modified:
+        modify the notification data dict or else return a new dict to
+        send. Uses for this are to censor secret information or to include
+        additional game state. The notify method has a different signature,
+        it takes a player number and kwargs are passed as a dictionary, a
+        copy of the original arguments which may be modified and/or
+        returned:
 
             @myaction.notify
             def myaction(self, engine, stash, player_num, kwargs):
+                ...
                 return kwargs  # customized for player
+
+        A notification can be blocked by returning `False`. In this case
+        the corresponding player will not know that the action was called.
 
         .. todo:: 1.0: Automatic roll-back if an exception is raised in any
         of the action handlers.
 
         :raises UnknownActionException: If action does not exist.
-
         """
         success = False
         actions = []
@@ -244,9 +247,13 @@ class Engine(AmethystWriteLocker, Object):
                 p_kwargs = copy.deepcopy(kwargs)
                 for action, plugin in actions:
                     if "notify" in action:
-                        if p_kwargs is not None:
-                            p_kwargs = action.call("notify", plugin, self, stash, player_num, p_kwargs)
-                if p_kwargs is not None:
+                        rv = action.call("notify", plugin, self, stash, player_num, p_kwargs)
+                        if rv is False:
+                            p_kwargs = False
+                            break
+                        elif rv is not None:
+                            p_kwargs = rv
+                if p_kwargs is not False:
                     self.notify(player_num, Notice(
                         name=name,
                         source=('client' if self.is_client() else 'server'),
