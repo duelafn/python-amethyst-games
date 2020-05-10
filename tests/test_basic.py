@@ -10,7 +10,7 @@ from amethyst.games.util import AmethystGameException
 class MyTest(unittest.TestCase):
 
     def test_stupid(self):
-        engine = Engine()
+        Engine()
 
     def test_NoticeType(self):
         # Should not be an error:

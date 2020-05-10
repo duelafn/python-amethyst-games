@@ -8,7 +8,7 @@ from example.tic_tac_toe import TicTacToe
 class MyTest(unittest.TestCase):
 
     def test_basic(self):
-        game = TicTacToe()
+        TicTacToe()
 
 
 if __name__ == '__main__':
