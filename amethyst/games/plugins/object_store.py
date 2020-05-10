@@ -11,7 +11,7 @@ import copy
 
 from amethyst.core import Attr
 
-from amethyst.games.filters import Filterable
+from amethyst.games.filters import Filterable, FILTER_ALL
 from amethyst.games.notice  import Notice, NoticeType
 from amethyst.games.plugin  import EnginePlugin, event_listener
 from amethyst.games.util    import nonce, GAME_MASTER, NOBODY
@@ -23,8 +23,8 @@ class ObjectStore(EnginePlugin):
     AMETHYST_PLUGIN_COMPAT  = 1.0
     AMETHYST_ENGINE_METHODS = """
     _get
-    _get_player _set_player
-    _get_shared _set_shared
+    _get_player _set_player _list_player
+    _get_shared _set_shared _list_shared
     _extend_shared
     """.split()
     AMETHYST_ENGINE_DEFAULT_METHOD_PREFIX = "stor_"
@@ -49,6 +49,9 @@ class ObjectStore(EnginePlugin):
         self.storage[id] = obj
         game.notify(None, Notice(source=self.id, type=NoticeType.STORE_SET, data=dict(shared=dict(id=obj))))
         return id
+
+    def _list_shared(self, game, filt=FILTER_ALL):
+        return [x for x in self.storage.values() if filt.accepts(x)]
 
     def _extend_shared(self, game, items):
         dd = dict()
@@ -85,6 +88,9 @@ class ObjectStore(EnginePlugin):
             data=dict(player={ player_num: { id: obj }}),
         ))
         return id
+
+    def _list_player(self, game, player_num, filt=FILTER_ALL):
+        return [x for x in self.player_storage[player_num].values() if filt.accepts(x)]
 
     def identify(self, obj):
         if isinstance(obj, Filterable):
