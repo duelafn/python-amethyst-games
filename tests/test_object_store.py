@@ -28,7 +28,8 @@ class ObjectStoreListShared(unittest.TestCase):
             Filterable(name='b'),
             Filterable(name='c'),
         ]
-        self.game.stor_extend_shared(objects)
+        for obj in objects:
+            self.game.stor_set_shared(obj.id, obj)
 
         self.assertCountEqual(self.game.stor_list_shared(), objects)
 
@@ -38,7 +39,8 @@ class ObjectStoreListShared(unittest.TestCase):
             Filterable(name='b', flags=set('bcd')),
             Filterable(name='c', flags=set('abc')),
         ]
-        self.game.stor_extend_shared(objects)
+        for obj in objects:
+            self.game.stor_set_shared(obj.id, obj)
 
         self.assertCountEqual(
             self.game.stor_list_shared(Filter(flag='a')),
