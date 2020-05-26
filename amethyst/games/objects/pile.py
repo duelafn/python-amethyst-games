@@ -56,7 +56,7 @@ class Pile(Filterable):
     def __contains__(self, needle):
         return needle in self.stack
 
-    def pick(self, n=1, as_list=None):
+    def pick(self, n=1, *, as_list=None):
         """
         Randomly remove n items assuming stack is not shuffled.
 
@@ -65,10 +65,9 @@ class Pile(Filterable):
 
         Returns item if only one is requested, else returns list.
         """
-        if n is None: n = len(self.stack)
         _n, rv = n, list()
         if isinstance(self.stack, collections.deque):
-            # Can't .pop(n) a deque. Do some more work:
+            # Can't .pop(i) a deque. Do some more work:
             tmp = list(self.stack)
             while _n > 0 and tmp:
                 _n -= 1
@@ -81,51 +80,50 @@ class Pile(Filterable):
                 rv.append(self.stack.pop( random.randint(0, len(self.stack)-1) ))
         return ctx_return(rv, n, as_list)
 
-    def sample(self, n=1, as_list=None):
+    def sample(self, n=1, *, as_list=None):
         """
         Randomly select n items with repetition assuming stack is not
         shuffled. Stack is left unmodified.
 
         Returns item if only one is requested, else returns list.
         """
-        if n is None: n = len(self.stack)
         k = min(n, len(self.stack))
         rv = random.sample(self.stack, k) if k else []
         return ctx_return(rv, n, as_list)
 
-    def choices(self, n=1, as_list=None):
+    def choices(self, n=1, *, as_list=None):
         """
         Randomly select n items without repetition assuming stack is not
         shuffled. Stack is left unmodified.
 
         Returns item if only one is requested, else returns list.
         """
-        if n is None: n = len(self.stack)
         k = min(n, len(self.stack))
         rv = random.choices(self.stack, k=k) if k else []
         return ctx_return(rv, n, as_list)
 
-    def pop(self, n=1, as_list=None):
+    def pop(self, n=1, *, as_list=None):
         """
         Take top n items off of pile, returning them.
 
         Returns item if only one is requested, else returns list.
+
+        NOTE: Pile.pop(n) is different from python's list.pop(i)! If you
+        want to remove an item from the middle of a pile, use Pile.remove_at(i).
         """
-        if n is None: n = len(self.stack)
         _n, rv = n, list()
         while _n > 0 and self.stack:
             _n -= 1
             rv.append(self.stack.pop())
         return ctx_return(rv, n, as_list)
 
-    def peek(self, n=1, as_list=None):
+    def peek(self, n=1, *, as_list=None):
         """
         Look top n items of pile without removing. Items are returned in
         list order, with the top item last.
 
         Returns item if only one is requested, else returns list.
         """
-        if n is None: n = len(self.stack)
         if self.stack:
             j = len(self.stack)
             k = min(j, n)
@@ -135,7 +133,7 @@ class Pile(Filterable):
             rv = list()
         return ctx_return(rv, n, as_list)
 
-    def remove(self, filt=FILTER_ALL):
+    def filter(self, filt=FILTER_ALL):
         """
         Remove items matching a Filter. Return list of the removed items.
         """
@@ -187,6 +185,22 @@ class Pile(Filterable):
 
     def extend(self, lst):
         self.stack.extend(lst)
+
+    def remove(self, arg):
+        self.stack.remove(arg)
+
+    def remove_at(self, i):
+        """
+        Note: This method is very inefficient.
+        """
+        if isinstance(self.stack, collections.deque):
+            # Can't .pop(i) a deque. Do some more work:
+            tmp = list(self.stack)
+            rv = tmp.pop(i)
+            self.stack.clear()
+            self.stack.extend(tmp)
+        else:
+            return self.stack.pop(i)
 
     def clear(self):
         self.stack.clear()
