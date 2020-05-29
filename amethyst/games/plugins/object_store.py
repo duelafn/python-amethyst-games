@@ -11,10 +11,10 @@ import copy
 
 from amethyst.core import Attr
 
-from amethyst.games.filters import Filterable, FILTER_ALL
+from amethyst.games.filters import FILTER_ALL
 from amethyst.games.notice  import Notice, NoticeType
 from amethyst.games.plugin  import EnginePlugin, event_listener
-from amethyst.games.util    import nonce, GAME_MASTER, NOBODY
+from amethyst.games.util    import GAME_MASTER, NOBODY
 
 NoticeType.register(STORE_SET="::store-set")
 NoticeType.register(STORE_DEL="::store-del")
