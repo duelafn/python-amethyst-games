@@ -68,6 +68,16 @@ class NoticeType(object):
         """
         return self._tokens.keys()
 
+    @classmethod
+    def get(self, key, default=None):
+        """Return the type string keyed to the given identifier."""
+        return self._tokens.get(key, default)
+
+    @classmethod
+    def items(self):
+        """Iterate known identifiers and types, like dict.items()."""
+        return self._tokens.items()
+
 
 class Notice(Filterable):
     source = Attr(isa=str)
