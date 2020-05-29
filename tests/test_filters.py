@@ -8,13 +8,18 @@ import unittest
 from os.path import dirname, abspath
 sys.path.insert(1, dirname(dirname(abspath(__file__))))
 
-from amethyst.games.filters import Filter, Filterable
+import amethyst.core
 
+from amethyst.games.filters import Filter, Filterable
 
 class TestFilters(unittest.TestCase):
     def test_filters(self):
         foo = Filterable(name="Foo", flags=set("abc"))
         bar = Filterable(name="Bar", flags=set("cde"))
+
+        # Filterables are immutable by default:
+        with self.assertRaises(amethyst.core.ImmutableObjectException):
+            foo.name = "Baz"
 
         foo_filter = Filter(name="Foo")
         self.assertTrue(foo_filter.accepts(foo))

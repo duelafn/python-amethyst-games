@@ -21,14 +21,13 @@ from amethyst.games.util import nonce
 
 
 
-class IFilter(Object):
+class IFilter(object):
     """
     IFilter - filter interface
 
     Defines required methods for filters and implements logical operators
     on Filters.
     """
-
     def accepts(self, obj):
         return False
 
@@ -60,7 +59,7 @@ class ClsFilterAll(IFilter):
 FILTER_ALL = ClsFilterAll()
 
 
-class BinOpFilter(IFilter):
+class BinOpFilter(IFilter, Object):
     left = Attr()
     right = Attr()
 
@@ -76,12 +75,12 @@ class XorFilter(BinOpFilter):
     def accepts(self, obj):
         return bool(self.left.accepts(obj)) ^ bool(self.right.accepts(obj))
 
-class NotFilter(IFilter):
+class NotFilter(IFilter, Object):
     filter = Attr()
     def accepts(self, obj):
         return not bool(self.filter.accepts(obj))
 
-class Filter(IFilter):
+class Filter(IFilter, Object):
     """
     Filter
 
@@ -108,6 +107,7 @@ class Filter(IFilter):
     """
     id    = Attr()
     name  = Attr()
+    type  = Attr()
     flag  = Attr()
     any   = Attr()
     all   = Attr()
@@ -124,6 +124,9 @@ class Filter(IFilter):
         if rv[-1] is False: return False
 
         rv.append(self.test_item(self.name, obj.name))
+        if rv[-1] is False: return False
+
+        rv.append(self.test_item(self.type, obj.type))
         if rv[-1] is False: return False
 
         rv.append(self.test_set(self.flag, obj.flags))
@@ -144,6 +147,7 @@ class Filter(IFilter):
 
     def test_item(self, test, val):
         if test is None: return None
+        if val is None: return False
         if isinstance(test, str):
             return test == val
         if isinstance(test, (list, tuple, set, frozenset)):
@@ -152,6 +156,7 @@ class Filter(IFilter):
 
     def test_set(self, test, vals):
         if test is None: return None
+        if vals is None: return False
         if isinstance(test, str):
             return test in vals
         if isinstance(test, (list, tuple)):
@@ -171,32 +176,54 @@ class IFilterable(object):
     """
     Filterable interface.
 
-    The following attributes are defined by this interface but are not
-    given default implementations.
+    This class merely defines the interface. Most objects should subclass
+    `Filterable` which is also an `amethyst.core.Object`.
 
-    :ivar str id: Stable, globally unique identifier. Should not be None.
+    The following attributes are defined by this interface but always
+    return None, thus will only be matchable if the filter does not try to
+    match it.
 
-    :ivar str name: Object name, not assumed to be unique. May be None.
+    :ivar str id: Stable, globally unique identifier.
 
-    :ivar set flags: Arbitrary set of flags or tags describing the
-    filterable. The core amethyst libraries should accept a frozenset
-    almost everywhere. The core amethyst libraries will typically accept a
-    list or tuple value, though possibly with reduced performance.
+    :ivar str name: Object name, not assumed to be unique.
+
+    :ivar str type: Object type, not assumed to be unique.
+
+    :ivar set flags: Arbitrary set of string flags or tags describing the
+    filterable. The core amethyst libraries accept a frozenset as well. The
+    core amethyst libraries will typically also accept a list or tuple
+    value, though possibly with reduced performance.
     """
     @property
     def id(self):
-        raise Exception("Not Implemented")
+        None
     @property
     def name(self):
-        raise Exception("Not Implemented")
+        None
+    @property
+    def type(self):
+        None
     @property
     def flags(self):
-        raise Exception("Not Implemented")
+        None
 
 
 class Filterable(IFilterable, Object):
+    """
+    Filterable base Object.
+
+    The object will be set immutable in the constructor (though see
+    limitations in the `amethyst.core` documentation).
+
+    If an `id` is not passed to the constructor, a random one will be
+    generated.
+
+    `name` and `type` will default to `None` and `flags weill default to an
+    empty `set()`.
+    """
     id = Attr(isa=str, default=nonce, OVERRIDE=True)
     name = Attr(isa=str, OVERRIDE=True)
+    type = Attr(isa=str, OVERRIDE=True)
     flags = Attr(isa=set, default=set, OVERRIDE=True)
 
     def __init__(self, *args, **kwargs):

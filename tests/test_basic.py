@@ -13,10 +13,10 @@ class MyTest(unittest.TestCase):
         Engine()
 
     def test_NoticeType(self):
-        # Should not be an error:
-        NoticeType.register(GRANT=NoticeType.GRANT)
+        with self.assertWarnsRegex(UserWarning, r"Duplicate notice type declaration of 'GRANT'"):
+            NoticeType.register(GRANT=NoticeType.GRANT)
 
-        with self.assertRaisesRegex(AmethystGameException, 'already registered'):
+        with self.assertRaisesRegex(AmethystGameException, r'already registered'):
             NoticeType.register(GRANT="FOO")
 
 
