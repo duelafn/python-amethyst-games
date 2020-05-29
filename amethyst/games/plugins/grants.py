@@ -79,11 +79,11 @@ class GrantManager(EnginePlugin):
     """
     AMETHYST_PLUGIN_COMPAT  = 1
     AMETHYST_ENGINE_METHODS = """
+    grant
+    trigger
     expire
     find_grant
-    grant
     list_grants
-    trigger
     """.split()
 
     grants = Attr(isa=dict, default=dict)
