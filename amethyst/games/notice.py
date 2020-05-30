@@ -62,21 +62,17 @@ class NoticeType(object):
             self._tokens[token] = key
 
     @classmethod
-    def types(self):
+    def names(self):
         """
         Returns an iterable of all known types (e.g., GRANT, CALL, STORE_SET, ...).
         """
-        return self._tokens.keys()
-
-    @classmethod
-    def get(self, key, default=None):
-        """Return the type string keyed to the given identifier."""
-        return self._tokens.get(key, default)
+        return self._tokens.values()
 
     @classmethod
     def items(self):
         """Iterate known identifiers and types, like dict.items()."""
-        return self._tokens.items()
+        for name in self.names():
+            yield (name, getattr(self, name))
 
 
 class Notice(Filterable):
