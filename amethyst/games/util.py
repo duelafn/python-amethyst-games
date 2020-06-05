@@ -30,8 +30,8 @@ from amethyst.core import cached_property
 
 random = SystemRandom()
 
-GAME_MASTER = {}
-NOBODY = None
+GAME_MASTER = object()   # sentinel value
+NOBODY = None            # sentinel value
 
 class AmethystGameException(Exception): pass
 class NotificationSequenceException(AmethystGameException): pass
