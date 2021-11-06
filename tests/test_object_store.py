@@ -3,12 +3,12 @@
 # SPDX-License-Identifier: LGPL-3.0
 import unittest
 
-import amethyst.games
-from amethyst.games.filters import Filter, Filterable
-from amethyst.games.plugins import ObjectStore
+import amethyst_games
+from amethyst_games.filters import Filter, Filterable
+from amethyst_games.plugins import ObjectStore
 
 
-class Engine(amethyst.games.Engine):
+class Engine(amethyst_games.Engine):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.register_plugin(ObjectStore())

@@ -10,13 +10,13 @@ import unittest
 from os.path import dirname, abspath
 sys.path.insert(1, dirname(dirname(abspath(__file__))))
 
-from amethyst.games import action
-from amethyst.games.plugins import GrantManager, Grant
-import amethyst.games
+from amethyst_games import action
+from amethyst_games.plugins import GrantManager, Grant
+import amethyst_games
 
 
 
-class Engine(amethyst.games.Engine):
+class Engine(amethyst_games.Engine):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.register_plugin(GrantManager())
@@ -26,7 +26,7 @@ class Engine(amethyst.games.Engine):
     def Grant(self, *args, **kwargs):
         self.grant(0, Grant(*args, **kwargs))
 
-class BaseGame(amethyst.games.EnginePlugin):
+class BaseGame(amethyst_games.EnginePlugin):
     AMETHYST_PLUGIN_COMPAT = 1  # Plugin API version
 
     @action

@@ -4,8 +4,8 @@
 
 import unittest
 
-from amethyst.games import Engine, NoticeType
-from amethyst.games.util import AmethystGameException
+from amethyst_games import Engine, NoticeType
+from amethyst_games.util import AmethystGameException
 
 class MyTest(unittest.TestCase):
 

@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: LGPL-3.0
 
 PKGNAME = amethyst-games
-PKG_VERSION = $(shell python3 -c 'import re; print(re.search("__version__ = \"([\d.]+)\"", open("amethyst/games/__init__.py").read()).group(1))')
-PY_FILES = $(shell find tests amethyst/games -type f -name "*.py")
+PKG_VERSION = $(shell python3 -c 'import re; print(re.search("__version__ = \"([\d.]+)\"", open("amethyst_games/__init__.py").read()).group(1))')
+PY_FILES = $(shell find tests amethyst_games -type f -name "*.py")
 
 .PHONY: all sdist dist debbuild clean test
 
 
 check:
-	@find amethyst/games example tests setup.py -type f -not -empty -exec perl -nE '($$hit = 1), exit if /SPDX\-License\-Identifier/; END { $$hit or say "$$ARGV: MISSING SPDX-License-Identifier" }' {} \;
+	@find amethyst_games example tests setup.py -type f -not -empty -exec perl -nE '($$hit = 1), exit if /SPDX\-License\-Identifier/; END { $$hit or say "$$ARGV: MISSING SPDX-License-Identifier" }' {} \;
 	@echo python3 -m flake8 --config=extra/flake8.ini ...
 	@python3 -m flake8 --config=extra/flake8.ini example/*.py ${PY_FILES}
 	@echo OK
@@ -33,13 +33,13 @@ dist: test debbuild
 	rm -rf debbuild
 
 doc:
-	epydoc --simple-term --html amethyst -o pydoc  --include-log --inheritance grouped
+	epydoc --simple-term --html amethyst_games -o pydoc  --include-log --inheritance grouped
 
 sdist: test
 	python3 setup.py sdist
 
 test:
-	python3 -m pytest --cov=amethyst/ --cov-branch --cov-report=html:_coverage tests example
+	python3 -m pytest --cov=amethyst_games/ --cov-branch --cov-report=html:_coverage tests example
 
 zip: test
 	python3 setup.py sdist --format=zip

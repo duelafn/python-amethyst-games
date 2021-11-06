@@ -17,7 +17,7 @@ IFilterable
 
 from amethyst.core import Object, Attr
 
-from amethyst.games.util import nonce
+from amethyst_games.util import nonce
 
 
 

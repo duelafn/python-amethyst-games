@@ -12,11 +12,11 @@ import warnings
 
 from amethyst.core import Object, Attr, cached_property
 
-from amethyst.games.notice import Notice, NoticeType
-from amethyst.games.util import AmethystWriteLocker
-from amethyst.games.util import UnknownActionException, PluginCompatibilityException, NotificationSequenceException
-from amethyst.games.util import random
-from amethyst.games.util import tupley
+from amethyst_games.notice import Notice, NoticeType
+from amethyst_games.util import AmethystWriteLocker
+from amethyst_games.util import UnknownActionException, PluginCompatibilityException, NotificationSequenceException
+from amethyst_games.util import random
+from amethyst_games.util import tupley
 
 NoticeType.register(CALL="::call")
 NoticeType.register(INIT="::init")
@@ -156,7 +156,7 @@ class Engine(AmethystWriteLocker, Object):
         action in registration order. If any return False, the action is
         aborted and False is returned.
 
-        See `amethyst.games.plugin.action` for more details.
+        See `amethyst_games.plugin.action` for more details.
 
         - check    : [immutable] return False to cancel the action
         - init     : [immutable] changes to the stash will be saved in the journal (generate random numbers here)

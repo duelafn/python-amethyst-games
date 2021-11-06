@@ -9,8 +9,8 @@ import warnings
 
 from amethyst.core import Attr
 
-from amethyst.games.filters import Filterable
-from amethyst.games.util import AmethystGameException
+from amethyst_games.filters import Filterable
+from amethyst_games.util import AmethystGameException
 
 class NoticeType(object):
     _tokens = dict()
@@ -33,7 +33,7 @@ class NoticeType(object):
         upper-case. The type (value) is a string which will be the actual
         notice type.
 
-        Notice types declared in `amethyst.gamess` will all be prefixed by
+        Notice types declared in `amethyst_gamess` will all be prefixed by
         two colons, as in `NoticeType.register(CALL="::call")`. Other
         libraries should prefix with a single colon and their library name,
         including at least one dot:

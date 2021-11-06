@@ -10,7 +10,7 @@ sys.path.insert(1, dirname(dirname(abspath(__file__))))
 
 import amethyst.core
 
-from amethyst.games.filters import Filter, Filterable
+from amethyst_games.filters import Filter, Filterable
 
 class TestFilters(unittest.TestCase):
     def test_filters(self):

@@ -15,7 +15,7 @@ import copy
 import amethyst.core.obj
 from amethyst.core import Object, Attr, cached_property
 
-from amethyst.games.util import PluginCompatibilityException, nonce
+from amethyst_games.util import PluginCompatibilityException, nonce
 
 
 class event_listener(object):

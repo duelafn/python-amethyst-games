@@ -7,7 +7,7 @@ __all__ = 'Turns'.split()
 
 from amethyst.core import Attr
 
-from amethyst.games.plugin import EnginePlugin
+from amethyst_games.plugin import EnginePlugin
 
 class Turns(EnginePlugin):
     """

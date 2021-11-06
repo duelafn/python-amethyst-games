@@ -8,9 +8,9 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from amethyst.core  import Object, Attr
-from amethyst.games import Engine, EnginePlugin, action, Filter
-from amethyst.games.plugins import GrantManager, Turns, Grant
-from amethyst.games.util import random
+from amethyst_games import Engine, EnginePlugin, action, Filter
+from amethyst_games.plugins import GrantManager, Turns, Grant
+from amethyst_games.util import random
 
 # Argument parsing
 import argparse
@@ -299,7 +299,7 @@ def MAIN2(argv):
 
     Each player is independent and could just as well be running of
     different machines. Each to/from json round-trip indicates where a
-    network transition would take place. See amethyst.games.transport for a
+    network transition would take place. See amethyst_games.transport for a
     usable network transport implementation.
     """
     # Build game and players. Players do not get a copy of the server, they

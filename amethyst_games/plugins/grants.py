@@ -11,10 +11,10 @@ GrantManager
 
 from amethyst.core import Attr
 
-from amethyst.games.notice  import Notice, NoticeType
-from amethyst.games.plugin  import EnginePlugin, event_listener
-from amethyst.games.util    import tupley
-from amethyst.games.filters import Filterable, FILTER_ALL
+from amethyst_games.notice  import Notice, NoticeType
+from amethyst_games.plugin  import EnginePlugin, event_listener
+from amethyst_games.util    import tupley
+from amethyst_games.filters import Filterable, FILTER_ALL
 
 NoticeType.register(GRANT="::grant")
 NoticeType.register(EXPIRE="::expire")
